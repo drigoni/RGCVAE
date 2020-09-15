@@ -25,9 +25,9 @@ In order to make de datasets type the following commands:
 ```bash
 cd data
 conda activate givae
-python make_dataset.py --dataset [dataset-name]
+python make_dataset.py --dataset [dataset]
 ```
-where _dataset-name_ can be:
+Where _dataset_ can be:
 * qm9
 * qm9_long2
 * zinc_long
@@ -35,10 +35,21 @@ where _dataset-name_ can be:
 
 
 ### Model Training
-
+In order to train the model use:
+```bash
+python MolGVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
+```
 
 ### Model Test
+In order to generate new molecules:
+```bash
+python MolGVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results", "use_mask":false}'
+```
 
+While, in order to reconstruct the molecules:
+```bash
+python MolGVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results", "use_mask":true}'
+```
 
 # Information
 For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
