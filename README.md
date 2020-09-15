@@ -15,16 +15,16 @@ The project is structured as follows:
 
 # Usage
 ### Data Download
-First you need to download the necessary files by running the following commands:
+First you need to download the necessary files and configuring the environment by running the following commands:
 ```bash
 sh setup.bash install
+conda activate givae
 ```
 
 ### Data Pre-processing
 In order to make de datasets type the following commands:
 ```bash
 cd data
-conda activate givae
 python make_dataset.py --dataset [dataset]
 ```
 Where _dataset_ can be:
