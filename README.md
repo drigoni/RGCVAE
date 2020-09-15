@@ -43,7 +43,7 @@ where _dataset-name_ can be:
 # Information
 For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
 
-**NOTE:** Some functions are extracted from the following source [code](https://github.com/microsoft/constrained-graph-variational-autoencoder)
+**NOTE:** Some functions are extracted from the following source [code](https://github.com/microsoft/constrained-graph-variational-autoencoder).
 
 # Licenze
 MIT
