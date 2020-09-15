@@ -51,6 +51,8 @@ While, in order to reconstruct the molecules:
 python MolGVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results", "use_mask":true}'
 ```
 
+In order to analyze the results, we used the following environmet: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
+
 # Information
 For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
 
