@@ -3,7 +3,7 @@ This repository contains the code used to generate the results reported in the p
 
 # Dependencies
 This project uses the `conda` environment.
-In the `_environment` folder you can find, for each model, the `.yml` file for the configuration of the `conda` environment and also the `.txt` files for the `pip` environment. 
+In the `root` folder you can find, for each model, the `.yml` file for the configuration of the `conda` environment and also the `.txt` files for the `pip` environment. 
 Note that some versions of the dependencies can generate problems in the configuration of the environment. For this reason, although the `setup.bash` file is present for the configuration of each project, it is better to configure them manually.
 
 # Structure
