@@ -37,18 +37,18 @@ Where _dataset_ can be:
 ### Model Training
 In order to train the model use:
 ```bash
-python MolGVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
+python GIVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
 ```
 
 ### Model Test
 In order to generate new molecules:
 ```bash
-python MolGVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results", "use_mask":false}'
+python GIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results", "use_mask":false}'
 ```
 
 While, in order to reconstruct the molecules:
 ```bash
-python MolGVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results", "use_mask":true}'
+python GIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results", "use_mask":true}'
 ```
 
 In order to analyze the results, we used the following environmet: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
