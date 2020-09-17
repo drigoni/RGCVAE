@@ -53,6 +53,15 @@ python GIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --conf
 
 In order to analyze the results, we used the following environmet: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
 
+
+### Optimization
+In order to optimize a molecule use the following command:
+```bash
+python MolGVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --config '{"generation":1, "use_mask":false, "suffix":"opt", "optimization_step": 20, "number_of_generation":4, "prior_learning_rate":0.001, "use_argmax_nodes":false, "use_argmax_bonds":true}'
+```
+
+
+
 # Information
 For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
 
