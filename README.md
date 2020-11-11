@@ -61,6 +61,9 @@ python MolGVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --c
 ```
 
 
+# Pre-processed datasets, Pre-trained Models and Results
+It is possible to find the pre-processed datasets, the pre-trained models and the results at the following link: [https://www.dropbox.com/s/vg12xccnklckc2p/pre-train_AAAI.zip?dl=0](https://www.dropbox.com/s/vg12xccnklckc2p/pre-train_AAAI.zip?dl=0)
+
 
 # Information
 For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
