@@ -75,7 +75,7 @@ class RGIVAE(ChemModel):
             'hidden_size_encoder': 70,  # encoder hidden size dimension
             'latent_space_size': 70,  # latent space size
             'prior_learning_rate': 0.05,  # gradient ascent optimization
-            'hist_local_search': False,
+            'hist_local_search': True,
             'use_edge_bias': True,  # whether use edge bias in gnn
             'optimization_step': 0,
             "use_argmax_nodes": False,  # use random sampling or argmax during node sampling
