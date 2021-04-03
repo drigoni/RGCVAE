@@ -1,5 +1,5 @@
-# Graph Isomorphism Variational Autoencoder (GIVAE)
-This repository contains the code used to generate the results reported in the paper: _GIVAE: Graph Isomorphism Variational Autoencoder for Molecule Design_.
+# Relational Graph Isomorphism Variational Autoencoder (RGIVAE)
+This repository contains the code used to generate the results reported in the paper: _RGIVAE: Graph Isomorphism Variational Autoencoder for Molecule Design_.
 
 # Dependencies
 This project uses the `conda` environment.
@@ -18,7 +18,7 @@ The project is structured as follows:
 First you need to download the necessary files and configuring the environment by running the following commands:
 ```bash
 sh setup.bash install
-conda activate givae
+conda activate rgivae
 ```
 
 ### Data Pre-processing
@@ -30,44 +30,41 @@ python make_dataset.py --dataset [dataset]
 Where _dataset_ can be:
 * qm9
 * qm9_long2
-* zinc_long
+* zinc
 * zinc_long2
 
 
 ### Model Training
 In order to train the model use:
 ```bash
-python GIVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
+python RGIVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
 ```
 
 ### Model Test
 In order to generate new molecules:
 ```bash
-python GIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results", "use_mask":false}'
+python RGIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results"}'
 ```
 
 While, in order to reconstruct the molecules:
 ```bash
-python GIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results", "use_mask":true}'
+python RGIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results"}'
 ```
 
-In order to analyze the results, we used the following environmet: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
+In order to analyze the results, we used the following environment: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
 
 
 ### Optimization
 In order to optimize a molecule use the following command:
 ```bash
-python MolGVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --config '{"generation":1, "use_mask":false, "suffix":"opt", "optimization_step": 20, "number_of_generation":4, "prior_learning_rate":0.001, "use_argmax_nodes":false, "use_argmax_bonds":true}'
+python RGIVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --config '{"generation":1, "use_mask":false, "suffix":"opt", "optimization_step": 20, "number_of_generation":100, "prior_learning_rate":0.3, "use_argmax_nodes":true, "use_argmax_bonds":true}'
 ```
 
 
 # Pre-processed datasets, Pre-trained Models and Results
-It is possible to find the pre-processed datasets, the pre-trained models and the results at the following link: [https://www.dropbox.com/s/vg12xccnklckc2p/pre-train_AAAI.zip?dl=0](https://www.dropbox.com/s/vg12xccnklckc2p/pre-train_AAAI.zip?dl=0)
-
+Soon we will public the pre-processed datasets, pre-trained models and generated molecules.
 
 # Information
-For any questions and comments, contact [Davide Rigoni](mailto:davide.rigoni.2@phd.unipd.it).
-
 **NOTE:** Some functions are extracted from the following source [code](https://github.com/microsoft/constrained-graph-variational-autoencoder).
 
 # Licenze
