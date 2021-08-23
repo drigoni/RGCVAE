@@ -3,8 +3,11 @@ import copy
 import pickle
 from collections import deque
 
+import networkx as nx
 from rdkit.Chem import Descriptors
 from rdkit.Chem import rdmolops
+from rdkit.Chem.Descriptors import MolLogP
+from utils.sascorer import calculateScore
 
 from model.datasets import *
 
@@ -366,3 +369,56 @@ def edge_labels_to_dense(edge_labels, maximum_vertice_num):
             label_dense[neighbor] = 1 / float(len(label_sparse))
         new_edge_labels.append(label_dense)
     return new_edge_labels  # [number_iteration, maximum_vertice_num]
+
+
+def penalized_logP(mol):
+    """
+    Reward that consists of log p penalized by SA and # long cycles,
+    as described in (Kusner et al. 2017). Scores are normalized based on the
+    statistics of 250k_rndm_zinc_drugs_clean.smi dataset
+    :param mol: rdkit mol object
+    :return: float
+    """
+    # normalization constants, statistics from 250k_rndm_zinc_drugs_clean.smi
+    logP_mean = 2.4570953396190123
+    logP_std = 1.434324401111988
+    SA_mean = -3.0525811293166134
+    SA_std = 0.8335207024513095
+    cycle_mean = -0.0485696876403053
+    cycle_std = 0.2860212110245455
+
+    log_p = MolLogP(mol)
+    SA = -calculateScore(mol)
+
+    # cycle score
+    cycle_list = nx.cycle_basis(nx.Graph(
+        Chem.rdmolops.GetAdjacencyMatrix(mol)))
+    if len(cycle_list) == 0:
+        cycle_length = 0
+    else:
+        cycle_length = max([len(j) for j in cycle_list])
+    if cycle_length <= 6:
+        cycle_length = 0
+    else:
+        cycle_length = cycle_length - 6
+    cycle_score = -cycle_length
+
+    normalized_log_p = (log_p - logP_mean) / logP_std
+    normalized_SA = (SA - SA_mean) / SA_std
+    normalized_cycle = (cycle_score - cycle_mean) / cycle_std
+    return normalized_log_p + normalized_SA + normalized_cycle
+
+
+def draw_smiles(path_in, path_out):
+    # read from file
+    f = open(path_in, 'r')
+    L = []
+    for line in f:
+        line = line.strip()
+        L.append(line)
+    f.close()
+    for i_smi, smi in enumerate(L):
+        tmp_path = path_out + '/mol_' + str(step) + '.png'
+        tmp_mol = Chem.MolFromSmiles(smi)
+        AllChem.Compute2DCoords(tmp_mol)
+        Draw.MolToFile(tmp_mol, tmp_path)

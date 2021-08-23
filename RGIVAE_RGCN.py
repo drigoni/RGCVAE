@@ -204,7 +204,8 @@ class MolGVAE(ChemModel):
                                                                  state_keep_prob=self.placeholders[
                                                                      'graph_state_keep_prob'])
                             self.weights['node_gru' + scope] = cell
-            # GIN VERSION
+
+            # ESP2 - RGCNC
             elif self.params['use_gin']:
                 self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
                 for scope in ['_encoder']:
@@ -222,14 +223,13 @@ class MolGVAE(ChemModel):
                                                                                                         self.placeholders[
                                                                                                             'out_layer_dropout_keep_prob'],
                                                                                                         name='MLP_edge',
-                                                                                                        activation_function=tf.nn.leaky_relu,
-                                                                                                        bias=True)
-                            self.weights['MLP' + scope + str(iter_idx)] = MLP_norm(new_h_dim,
-                                                                                   new_h_dim,
-                                                                                   [new_h_dim],
-                                                                                   self.placeholders[
-                                                                                       'out_layer_dropout_keep_prob'],
-                                                                                   activation_function=tf.nn.leaky_relu)
+                                                                                                        activation_function=tf.nn.leaky_relu)
+                            self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
+                                                                              new_h_dim,
+                                                                              [],
+                                                                              self.placeholders[
+                                                                                  'out_layer_dropout_keep_prob'],
+                                                                              activation_function=tf.nn.leaky_relu)
 
         # GIN VERSION
         with tf.name_scope('distribution_vars'):
@@ -247,6 +247,21 @@ class MolGVAE(ChemModel):
                                                   self.placeholders['out_layer_dropout_keep_prob'],
                                                   activation_function=tf.nn.leaky_relu,
                                                   name='logvariance_MLP')
+        # ESP1 - base graph convolution layer
+        # with tf.name_scope('distribution_vars'):
+        #     # Weights final part encoder. They map all nodes in one point in the latent space
+        #     input_size_distribution = h_dim_en * (self.params['num_timesteps'] + 1)
+        #     self.weights['mean_MLP'] = MLP(h_dim_en, ls_dim,
+        #                                    # [input_size_distribution, input_size_distribution, ls_dim],
+        #                                    [],
+        #                                    self.placeholders['out_layer_dropout_keep_prob'],
+        #                                    activation_function=tf.nn.leaky_relu,
+        #                                    name='mean_MLP')
+        #     self.weights['logvariance_MLP'] = MLP(h_dim_en, ls_dim,
+        #                                           [],
+        #                                           self.placeholders['out_layer_dropout_keep_prob'],
+        #                                           activation_function=tf.nn.leaky_relu,
+        #                                           name='logvariance_MLP')
 
         with tf.name_scope('gen_nodes_vars'):
             self.weights['histogram_MLP'] = MLP(ls_dim + 2 * hist_dim, 50,
@@ -372,40 +387,45 @@ class MolGVAE(ChemModel):
             last_h = tf.reshape(h, [-1, v, h_dim])
         return last_h
 
+    # ESP 2 - RGCNC
     def compute_final_node_with_GIN(self, h, adj, scope_name):  # scope_name: _encoder or _decoder
         # h: initial representation, adj: adjacency matrix, different GNN parameters for encoder and decoder
         v = self.placeholders['num_vertices']
         # _decoder uses a larger latent space because concat of symbol and latent representation
         h_dim = self.params['hidden_size_encoder']
-        h = tf.reshape(h, [-1, h_dim])  # [b*v, h]
         weigths_concat = h
         for iter_idx in range(self.params['num_timesteps']):
             with tf.variable_scope("gin_scope" + scope_name + str(iter_idx), reuse=None) as g_scope:
+                h = tf.reshape(h, [-1, h_dim])  # [b*v, h]
                 for edge_type in range(self.num_edge_types):
                     m = tf.nn.leaky_relu(self.weights['MLP_edge' + str(edge_type) + scope_name + str(iter_idx)](h,
                                                                                                                 self.placeholders[
                                                                                                                     'is_training']))
-                    m = tf.reshape(m, [-1, v, h_dim])  # [b, v, h]  with softmax
                     # collect the messages from other vertices to each vertice
+                    m = tf.reshape(m, [-1, v, h_dim])  # [b, v, h]
                     if edge_type == 0:
                         acts = tf.matmul(adj[edge_type], m)
                     else:
-                        acts += tf.matmul(adj[edge_type], m)
-                # all messages collected for each node
-                acts = tf.reshape(acts, [-1, h_dim])  # [b*v, h]
-                input = tf.multiply((1 + self.weights['gin_epsilon']), h) + acts
-                h = tf.nn.leaky_relu(
-                    self.weights['MLP' + scope_name + str(iter_idx)](input, self.placeholders['is_training']))
+                        acts += tf.matmul(adj[edge_type], m)  # [b, v, h]
+                simple_adj = tf.reduce_sum(adj, axis=0)  # [b, v, v]
+                neig_sum = tf.reduce_sum(simple_adj, axis=-1, keepdims=True)
+                neig_check = tf.where(neig_sum > 0,
+                                      neig_sum,
+                                      tf.ones_like(neig_sum))
+                acts = acts / neig_check  # broadcasting
+                acts = tf.reshape(acts, [-1, h_dim])
+                h = self.weights['MLP' + scope_name + str(iter_idx)](h, self.placeholders['is_training'])
+                h = tf.nn.leaky_relu(h + acts)
                 # tensorboard
+                h = tf.reshape(h, [-1, v, h_dim])
                 tf.summary.histogram("gin_scope" + scope_name + str(iter_idx) + "_node_state", h)
-                weigths_concat = tf.concat([weigths_concat, h], axis=1)
-        last_h = tf.reshape(h, [-1, v, h_dim])
-        last_weigths_concat = tf.reshape(weigths_concat, [-1, v, h_dim * (self.params['num_timesteps'] + 1)])
+                weigths_concat = tf.concat([weigths_concat, h], axis=-1)
+        last_h = h
         # tensorboard
-        tf.summary.histogram("last_weigths_concat", last_weigths_concat)
+        tf.summary.histogram("last_weigths_concat", weigths_concat)
         last_h = last_h * self.ops['graph_state_mask']
-        average_pooling = tf.reduce_mean(last_h, axis=1, keepdims=False)
-        return last_h, last_weigths_concat, average_pooling
+        weigths_concat = weigths_concat * self.ops['graph_state_mask']
+        return last_h, weigths_concat, None
 
     def compute_mean_and_logvariance(self):
         v = self.placeholders['num_vertices']
@@ -938,7 +958,7 @@ class MolGVAE(ChemModel):
                                                                 self.weights['qed_biases'],
                                                                 self.placeholders['num_vertices'],
                                                                 self.placeholders['node_mask'])
-                    self.ops['computed_values'] = computed_values
+                    self.ops['qed_computed_values'] = computed_values
                 else:
                     computed_values = self.gated_regression_plogP(initial_nodes_decoder,
                                                                   self.weights['regression_gate_task%i' % task_id],
@@ -948,7 +968,7 @@ class MolGVAE(ChemModel):
                                                                   self.weights['plogP_biases'],
                                                                   self.placeholders['num_vertices'],
                                                                   self.placeholders['node_mask'])
-                    self.ops['computed_values'] = computed_values
+                    self.ops['plogp_computed_values'] = computed_values
                 diff = computed_values - self.placeholders['target_values'][internal_id, :]  # [b]
                 task_target_mask = self.placeholders['target_mask'][internal_id, :]
                 task_target_num = tf.reduce_sum(task_target_mask) + utils.SMALL_NUMBER
@@ -964,19 +984,19 @@ class MolGVAE(ChemModel):
                     self.ops['l2_loss'] = 0.01 * tf.reduce_sum(flattened_z * flattened_z, axis=1) / 2
                     # Calculate the derivative with respect to QED + l2 loss
                     self.ops['derivative_z_sampled'] = tf.gradients(
-                        self.ops['computed_values'] - self.ops['l2_loss'],
+                        self.ops['qed_computed_values'] - self.ops['l2_loss'],
                         self.placeholders['z_prior'])
-                    self.ops['derivative_hist'] = tf.gradients(self.ops['computed_values'] - self.ops['l2_loss'],
+                    self.ops['derivative_hist'] = tf.gradients(self.ops['qed_computed_values'] - self.ops['l2_loss'],
                                                                histograms_input)
                 elif task_id == 1:  # Assume it is the plogP score
                     flattened_z = tf.reshape(initial_nodes_decoder, [initial_nodes_decoder_shape[0], -1])
                     self.ops['l2_loss_plop'] = 0.01 * tf.reduce_sum(flattened_z * flattened_z, axis=1) / 2
                     # Calculate the derivative with respect to QED + l2 loss
                     self.ops['derivative_z_sampled_plop'] = tf.gradients(
-                        self.ops['computed_values'] - self.ops['l2_loss_plop'],
+                        self.ops['plogp_computed_values'] - self.ops['l2_loss'],
                         self.placeholders['z_prior'])
                     self.ops['derivative_hist_plogp'] = tf.gradients(
-                        self.ops['computed_values'] - self.ops['l2_loss_plop'],
+                        self.ops['plogp_computed_values'] - self.ops['l2_loss'],
                         histograms_input)
         self.ops['total_qed_loss'] = tf.reduce_sum(
             self.ops['qed_loss'])  # number representing the sum of the mean of the loss for each property
@@ -1310,12 +1330,12 @@ class MolGVAE(ChemModel):
         temp = self.generate_graph_with_state(random_normal_states, num_vertices, generated_all_similes, elements, step,
                                               count, current_hist, hist_freq_per_num_atoms)
         SMILES.append(temp)
-        # fetch_list = [self.ops['derivative_z_sampled'], self.ops['computed_values'], self.ops['derivative_hist']]
+        # fetch_list = [self.ops['derivative_z_sampled'], self.ops['qed_computed_values'], self.ops['derivative_hist']]
         if self.params['task_ids'][0] == 0:
-            fetch_list = [self.ops['derivative_z_sampled'], self.ops['computed_values']]
+            fetch_list = [self.ops['derivative_z_sampled'], self.ops['qed_computed_values']]
             current_function = QED.qed
         else:
-            fetch_list = [self.ops['derivative_z_sampled_plop'], self.ops['computed_values']]
+            fetch_list = [self.ops['derivative_z_sampled_plogP'], self.ops['plogP_computed_values']]
             current_function = utils.penalized_logP
         for _ in range(self.params['optimization_step']):
             # get current qed and derivative
@@ -1371,13 +1391,6 @@ class MolGVAE(ChemModel):
             # data index
             idx = random.randint(0, len(bucketed[bucket]) - 1)
             elements_original = bucketed[bucket][idx]
-            # print(elements_original['labels'])
-            if self.params['task_ids'][0] == 0:
-                limit = 0.85
-            else:
-                limit = 3.0
-            if elements_original['labels'][0] < limit:
-                continue
             elements = copy.deepcopy(elements_original)
             maximum_length = bucket_sizes[bucket]
             if self.params['compensate_num'] > 0:
@@ -1386,7 +1399,7 @@ class MolGVAE(ChemModel):
             random_normal_states = utils.generate_std_normal(1, maximum_length,
                                                              self.params['latent_space_size'])  # [1, h]
             random_global_normal_states = np.random.normal(0, 1, [1, self.params['latent_space_size']])
-            random_normal_states = self.optimization_over_prior(random_normal_states,
+            random_normal_states = self.optimization_over_prior(random_normal_states, random_global_normal_states,
                                                                 maximum_length,
                                                                 generated_all_similes, generated_all_QED,
                                                                 elements, count)
@@ -1400,13 +1413,6 @@ class MolGVAE(ChemModel):
                 generated_QED_delta = np.nanmax(generated_QED[:, :, 0], axis=1) - generated_QED[:, 0, 0]
                 generated_QED_max = np.nanmax(generated_QED[:, :, 0], axis=1)
                 generated_QED_argmax = np.nanargmax(generated_QED[:, :, 0], axis=1)
-
-                ## print top 3 values
-                ordered_values = np.nanmax(generated_QED[:, :, 0], axis=1).flatten()
-                ordered_values.sort()
-                print('### TOP VALUES ###')
-                print(ordered_values[-10:])
-                print("")
 
                 best_smiles = generated_smiles[np.arange(0, generated_QED.shape[0]), generated_QED_argmax]
                 # print(np.nanmax(generated_QED[:, :, 0], axis=1))
@@ -1459,7 +1465,7 @@ class MolGVAE(ChemModel):
             sampled_idx_hist = np.random.choice(len(self.histograms['train'][0]), p=hist_prob_per_num_atoms)
         # generate a new molecule
         current_hist = self.histograms['train'][0][sampled_idx_hist]
-        temp = self.generate_graph_with_state(random_normal_states, num_vertices,
+        temp = self.generate_graph_with_state(random_normal_states, random_global_normal_states, num_vertices,
                                               generated_all_similes, elements, step,
                                               count, current_hist, hist_freq_per_num_atoms)
         generated_all_similes.append(temp)
@@ -1524,7 +1530,7 @@ class MolGVAE(ChemModel):
                 exit(0)
             count += 1
 
-    def generate_graph_with_state(self, random_normal_states, num_vertices,
+    def generate_graph_with_state(self, random_normal_states, random_global_normal_states, num_vertices,
                                   generated_all_similes, elements, step, count, current_hist, values_hist):
         # Get back node symbol predictions
         # Prepare dict

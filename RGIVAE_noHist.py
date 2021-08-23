@@ -21,7 +21,6 @@ import traceback
 
 import pandas as pd
 from docopt import docopt
-from rdkit.Chem import AllChem, Draw
 from rdkit.Chem import QED
 
 from model.GGNN_core import *
@@ -44,7 +43,7 @@ h:      GNN hidden size
 """
 
 
-class RGIVAE(ChemModel):
+class MolGVAE(ChemModel):
     def __init__(self, args):
         super().__init__(args)
 
@@ -58,6 +57,8 @@ class RGIVAE(ChemModel):
             'log_dir': './results',
             'train_file': 'data/molecules_train_%s.json' % dataset,
             'valid_file': 'data/molecules_valid_%s.json' % dataset,
+            # 'train_file': 'data/molecules_small_dataset.json',
+            # 'valid_file': 'data/molecules_test_%s.json' % dataset,
             'test_file': 'data/molecules_test_%s.json' % dataset,
             "use_gpu": True,
             "tensorboard": 3,  # frequency if we use tensorboard else None
@@ -75,19 +76,19 @@ class RGIVAE(ChemModel):
             'hidden_size_encoder': 70,  # encoder hidden size dimension
             'latent_space_size': 70,  # latent space size
             'prior_learning_rate': 0.05,  # gradient ascent optimization
-            'hist_local_search': True,
+            'hist_local_search': False,
             'use_edge_bias': True,  # whether use edge bias in gnn
             'optimization_step': 0,
             "use_argmax_nodes": False,  # use random sampling or argmax during node sampling
             "use_argmax_bonds": False,  # use random sampling or argmax during bonds generations
-            'use_mask': False,  # true to use node mask
+            'use_mask': True,  # true to use node mask
             "path_random_order": False,  # False: canonical order, True: random order
             'tie_fwd_bkwd': True,
             "compensate_num": 1,  # how many atoms to be added during generation
-            "gen_hist_sampling": True,  # sampling new hist during generation task.
+            "gen_hist_sampling": False,  # sampling new hist during generation task.
 
             # loss params
-            "kl_trade_off_lambda": 0.05,
+            "kl_trade_off_lambda": 0.05 if "qm9" in dataset else 0.01,
             "kl_trade_off_lambda_factor": 0,
             "qed_trade_off_lambda": 10,
             'learning_rate': 0.001,
@@ -229,7 +230,50 @@ class RGIVAE(ChemModel):
                                                                                    self.placeholders[
                                                                                        'out_layer_dropout_keep_prob'],
                                                                                    activation_function=tf.nn.leaky_relu)
+            # ESP1 - base graph convolution layer
+            # elif self.params['use_gin']:
+            #    self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
+            #    for scope in ['_encoder']:
+            #        if scope == '_encoder':
+            #            new_h_dim = h_dim_en
+            #        else:
+            #            new_h_dim = expanded_h_dim
+            #            # For each GNN iteration
+            #        for iter_idx in range(self.params['num_timesteps']):
+            #            with tf.variable_scope("gin_scope" + scope + str(iter_idx), reuse=False):
+            #                self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                  new_h_dim,
+            #                                                                  [],
+            #                                                                  self.placeholders[
+            #                            python -u RGIVAE.py --dataset moses --config '{"generation":0, "log_dir":"./results_esp3", "use_mask":false, "num_timesteps":10 "kl_trade_off_lambda":0.05, "hidden_size_encoder":150, "latent_space_size":150, "batch_size":500, "suffix":"kl0.05d150i12"}' | tee output_esp3.txt                                          'out_layer_dropout_keep_prob'],
+            #                                                                  activation_function=tf.nn.leaky_relu)
+            # ESP2 - link nicolo'
+            # elif self.params['use_gin']:
+            #     self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
+            #     for scope in ['_encoder']:
+            #         if scope == '_encoder':
+            #             new_h_dim = h_dim_en
+            #         else:
+            #             new_h_dim = expanded_h_dim
+            #             # For each GNN iteration
+            #         for iter_idx in range(self.params['num_timesteps']):
+            #             with tf.variable_scope("gin_scope" + scope + str(iter_idx), reuse=False):
+            #                 for edge_type in range(self.num_edge_types):
+            #                     self.weights['MLP_edge' + str(edge_type) + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                                             new_h_dim,
+            #                                                                                             [],
+            #                                                                                             self.placeholders[
+            #                                                                                                 'out_layer_dropout_keep_prob'],
+            #                                                                                             name='MLP_edge',
+            #                                                                                             activation_function=tf.nn.leaky_relu)
+            #                 self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                   new_h_dim,
+            #                                                                   [],
+            #                                                                   self.placeholders[
+            #                                                                       'out_layer_dropout_keep_prob'],
+            #                                                                  activation_function=tf.nn.leaky_relu)
 
+        # GIN VERSION
         with tf.name_scope('distribution_vars'):
             # Weights final part encoder. They map all nodes in one point in the latent space
             input_size_distribution = h_dim_en * (self.params['num_timesteps'] + 1)
@@ -245,6 +289,21 @@ class RGIVAE(ChemModel):
                                                   self.placeholders['out_layer_dropout_keep_prob'],
                                                   activation_function=tf.nn.leaky_relu,
                                                   name='logvariance_MLP')
+        # ESP1 - base graph convolution layer
+        # with tf.name_scope('distribution_vars'):
+        #     # Weights final part encoder. They map all nodes in one point in the latent space
+        #     input_size_distribution = h_dim_en * (self.params['num_timesteps'] + 1)
+        #     self.weights['mean_MLP'] = MLP(h_dim_en, ls_dim,
+        #                                    # [input_size_distribution, input_size_distribution, ls_dim],
+        #                                    [],
+        #                                    self.placeholders['out_layer_dropout_keep_prob'],
+        #                                    activation_function=tf.nn.leaky_relu,
+        #                                    name='mean_MLP')
+        #     self.weights['logvariance_MLP'] = MLP(h_dim_en, ls_dim,
+        #                                           [],
+        #                                           self.placeholders['out_layer_dropout_keep_prob'],
+        #                                           activation_function=tf.nn.leaky_relu,
+        #                                           name='logvariance_MLP')
 
         with tf.name_scope('gen_nodes_vars'):
             self.weights['histogram_MLP'] = MLP(ls_dim + 2 * hist_dim, 50,
@@ -259,6 +318,8 @@ class RGIVAE(ChemModel):
                                                   name='node_symbol_MLP')
 
         with tf.name_scope('gen_edges_vars'):
+            # gen edges
+            # input_size_edge = 4 * (h_dim_en + h_dim_de)  # with sum and product as context
             input_size_edge = 3 * (h_dim_en + h_dim_de)  # remove product as context
             self.weights['edge_gen_MLP'] = MLP(input_size_edge, 1,
                                                [input_size_edge, h_dim_de],
@@ -273,11 +334,15 @@ class RGIVAE(ChemModel):
 
         with tf.name_scope('qed_vars'):
             # weights for linear projection on qed prediction input
-            input_size_qed = ls_dim + hist_dim
+            input_size_qed = h_dim_en + h_dim_de
             self.weights['qed_weights'] = tf.Variable(utils.glorot_init([input_size_qed, input_size_qed]),
                                                       name='qed_weights')
             self.weights['qed_biases'] = tf.Variable(np.zeros([1, input_size_qed]).astype(np.float32),
                                                      name='qed_biases')
+            self.weights['plogP_weights'] = tf.Variable(utils.glorot_init([input_size_qed, input_size_qed]),
+                                                        name='plogP_weights')
+            self.weights['plogP_biases'] = tf.Variable(np.zeros([1, input_size_qed]).astype(np.float32),
+                                                       name='plogP_biases')
 
         # use node embeddings
         self.weights["node_embedding"] = tf.Variable(utils.glorot_init([self.params["num_symbols"], h_dim_en]),
@@ -377,8 +442,7 @@ class RGIVAE(ChemModel):
                     m = tf.nn.leaky_relu(self.weights['MLP_edge' + str(edge_type) + scope_name + str(iter_idx)](h,
                                                                                                                 self.placeholders[
                                                                                                                     'is_training']))
-                    # apply non linearity
-                    m = tf.reshape(tf.nn.leaky_relu(m), [-1, v, h_dim])  # [b, v, h]  with softmax
+                    m = tf.reshape(m, [-1, v, h_dim])  # [b, v, h]  with softmax
                     # collect the messages from other vertices to each vertice
                     if edge_type == 0:
                         acts = tf.matmul(adj[edge_type], m)
@@ -396,7 +460,9 @@ class RGIVAE(ChemModel):
         last_weigths_concat = tf.reshape(weigths_concat, [-1, v, h_dim * (self.params['num_timesteps'] + 1)])
         # tensorboard
         tf.summary.histogram("last_weigths_concat", last_weigths_concat)
-        return last_h, last_weigths_concat
+        last_h = last_h * self.ops['graph_state_mask']
+        average_pooling = tf.reduce_mean(last_h, axis=1, keepdims=False)
+        return last_h, last_weigths_concat, average_pooling
 
     def compute_mean_and_logvariance(self):
         v = self.placeholders['num_vertices']
@@ -427,7 +493,7 @@ class RGIVAE(ChemModel):
         # Sample from normal distribution
         z_prior = tf.reshape(self.placeholders['z_prior'], [-1, ls_dim])
         # Train: sample from u, Sigma. Generation: sample from 0,1
-        if self.params['generation'] in [0, 2, 3]:  # Training, test and reconstruction
+        if self.params['generation'] in [0, 2, 4]:  # Training, reconstruction and validation
             z_sampled = tf.add(self.ops['mean'], tf.multiply(tf.sqrt(tf.exp(self.ops['logvariance'])), z_prior))
         else:
             z_sampled = z_prior
@@ -448,9 +514,9 @@ class RGIVAE(ChemModel):
         batch_size = tf.shape(self.ops['z_sampled'])[0]
         v = self.placeholders['num_vertices']
 
-        if self.params['generation'] in [0, 3]:  # Training and test
+        if self.params['generation'] in [0, 4]:  # Training and test
             initial_nodes_decoder, node_symbol_prob, sampled_atoms = self.train_procedure()
-        elif self.params['generation'] in [1, 2]:  # Reconstruction and Generation
+        elif self.params['generation'] in [1, 2, 3]:  # Reconstruction and Generation
             initial_nodes_decoder, node_symbol_prob, sampled_atoms = self.gen_rec_procedure()
 
         # batch normalization
@@ -543,7 +609,7 @@ class RGIVAE(ChemModel):
         zero_hist = tf.zeros([hist_dim], tf.int32)
 
         # select the rigth function according to reconstruction or generation
-        if self.params['generation'] == 1 and self.params['optimization_step'] == 0:
+        if self.params['generation'] == 1:
             funct_to_call = self.generate_nodes
         else:
             funct_to_call = self.reconstruct_nodes
@@ -567,6 +633,7 @@ class RGIVAE(ChemModel):
 
     def reconstruct_nodes(self, idx_atom, atoms, init_vertices, fx_prob, idx_sample, updated_hist, sampled_hist):
         current_sample_z = self.ops['z_sampled'][idx_sample][idx_atom]
+        current_mask_value = self.placeholders['node_mask'][idx_sample][idx_atom]
         current_sample_hist_casted = tf.cast(sampled_hist, dtype=tf.float32)
 
         # concatenation with the histogram embedding
@@ -591,6 +658,11 @@ class RGIVAE(ChemModel):
         probs_value = node_probs
         s_atom = self.sample_atom(probs_value, True)
         new_updated_hist = self.update_hist(updated_hist, s_atom)
+        # if the node should be masked, we do not update the current_histogram. In this way, it is always the last one
+        # which represent the molecule.
+        # new_updated_hist = tf.cond(tf.equal(current_mask_value, 0),
+        #                            lambda: updated_hist,
+        #                            lambda: self.update_hist(updated_hist, s_atom))
 
         s_atom, init_v, fx = tf.expand_dims(s_atom, 0), tf.squeeze(new_z_concat), probs_value
 
@@ -606,6 +678,7 @@ class RGIVAE(ChemModel):
     def generate_nodes(self, idx_atom, atoms, init_vertices, fx_prob, idx_sample, updated_hist, sampled_hist):
         hist_dim = self.histograms['hist_dim']
         current_sample_z = self.ops['z_sampled'][idx_sample][idx_atom]
+        current_mask_value = self.placeholders['node_mask'][idx_sample][idx_atom]
 
         current_sample_hist_casted = tf.cast(sampled_hist, dtype=tf.float32)
         current_hist_casted = tf.cast(updated_hist, dtype=tf.float32)
@@ -615,8 +688,8 @@ class RGIVAE(ChemModel):
         # experiment
         h_fake = tf.zeros_like(current_hist_casted)
         hdiff_fake = tf.zeros_like(hist_diff_pos)
-        conc = tf.concat([current_sample_z, h_fake, hdiff_fake], axis=0)
 
+        conc = tf.concat([current_sample_z, h_fake, hdiff_fake], axis=0)
         exp = tf.expand_dims(conc, 0)
         # build a node with NN (K)
         hist_emb = tf.nn.tanh(self.weights['histogram_MLP'](exp, self.placeholders['is_training']))
@@ -627,8 +700,13 @@ class RGIVAE(ChemModel):
         node_probs = tf.nn.softmax(atom_logits)
         s_atom = self.sample_atom(node_probs, False)
         new_updated_hist = self.update_hist(updated_hist, s_atom)
+        # if the node should be masked, we do not update the current_histogram. In this way, it is always the last one
+        # which represent the molecule.
+        # new_updated_hist = tf.cond(tf.equal(current_mask_value, 0),
+        #                            lambda: updated_hist,
+        #                            lambda: self.update_hist(updated_hist, s_atom))
 
-        if False:
+        if self.params['gen_hist_sampling']:
             # sampling one compatible histogram with the current new histogram
             reshape = tf.reshape(new_updated_hist,
                                  (-1, hist_dim))  # reshape the dimension from [n_valences] to [1, n_valences]
@@ -693,7 +771,7 @@ class RGIVAE(ChemModel):
     """
 
     def sample_atom(self, fx_prob, training):
-        if training and self.params['optimization_step'] == 0:
+        if training or self.params['generation'] == 3:
             idx = tf.argmax(fx_prob, output_type=tf.int32)
         else:
             if self.params['use_argmax_nodes']:
@@ -732,6 +810,11 @@ class RGIVAE(ChemModel):
         mol_valence = tf.constant(mol_valence_list)
         indexes = tf.argmax(self.ops['latent_node_symbols'], axis=-1)  # [b, v]
         valences = tf.nn.embedding_lookup(mol_valence, indexes)
+
+        # representation in input to edge decoder
+        latent_node_state = self.get_node_embedding_state(self.ops['latent_node_symbols'])
+        filtered_z_sampled = tf.concat([self.ops['initial_nodes_decoder'], latent_node_state], axis=2)
+        self.ops["initial_repre_for_decoder"] = filtered_z_sampled  # [b, v, 2h]
 
         #    The tensor array used to collect the cross entropy losses at each step
         edges_pred = tf.TensorArray(dtype=tf.float32, size=v)
@@ -798,21 +881,25 @@ class RGIVAE(ChemModel):
         edges_val_req = tf.expand_dims(edges_val_req, 0)
         edges_val_req = tf.tile(edges_val_req, [batch_size, v, 1])
 
-        latent_node_state = self.get_node_embedding_state(self.ops['latent_node_symbols'])
-        filtered_z_sampled = tf.concat([self.ops['initial_nodes_decoder'], latent_node_state], axis=2)
-        self.ops["initial_repre_for_decoder"] = filtered_z_sampled  # [b, v, 2h]
+        filtered_z_sampled = self.ops["initial_repre_for_decoder"]
 
         # graph features
         graph_sum = tf.reduce_mean(filtered_z_sampled, axis=1, keep_dims=True)  # [b, 1, 2h]
         graph_sum = tf.tile(graph_sum, [1, v, 1])
+        # graph_prod = tf.reduce_prod(filtered_z_sampled, axis=1, keep_dims=True)  # [b, 1, 2h]
+        # graph_prod = tf.tile(graph_prod, [1, v, 1])
 
         # node in focus feature
         node_focus = filtered_z_sampled[:, idx, :]
         node_focus = tf.tile(tf.expand_dims(node_focus, axis=1), [1, v, 1])
         node_focus_sum = node_focus + filtered_z_sampled
         node_focus_prod = node_focus * filtered_z_sampled  # [b, v, 2h]
+        # input_features = tf.concat([node_focus_sum, node_focus_prod, graph_sum, graph_prod], axis=-1)
+        # dim_input_network = 4 * (h_dim_en + h_dim_de)
         input_features = tf.concat([node_focus_sum, node_focus_prod, graph_sum], axis=-1)
         dim_input_network = 3 * (h_dim_en + h_dim_de)
+        # input_features = tf.concat([node_focus, filtered_z_sampled, graph_sum], axis=-1)
+        # dim_input_network = 3 * (h_dim_en + h_dim_de)
 
         # node in focus valences
         node_focus_valences = valences[:, idx]
@@ -851,7 +938,8 @@ class RGIVAE(ChemModel):
     def construct_loss(self):
         v = self.placeholders['num_vertices']
         ls_dim = self.params['latent_space_size']
-        latent_space_dim = self.params['latent_space_size']
+        h_dim_de = ls_dim + 50
+        h_dim_en = self.params['hidden_size_encoder']
         kl_trade_off_lambda_start = self.params['kl_trade_off_lambda']
         kl_trade_off_lambda_factor = self.params['kl_trade_off_lambda_factor']
         n_epoch = self.placeholders['n_epoch']
@@ -886,33 +974,42 @@ class RGIVAE(ChemModel):
         # Add in the loss for calculating QED
         for (internal_id, task_id) in enumerate(self.params['task_ids']):
             with tf.variable_scope("out_layer_task%i" % task_id):
-                input_size_qed = latent_space_dim + self.histograms['hist_dim']
+                input_size_qed = h_dim_de + h_dim_en
                 with tf.variable_scope("regression_gate"):
                     self.weights['regression_gate_task%i' % task_id] = MLP(input_size_qed, 1, [],
                                                                            self.placeholders[
-                                                                               'out_layer_dropout_keep_prob'])
+                                                                               'out_layer_dropout_keep_prob'],
+                                                                           activation_function=tf.nn.leaky_relu)
                 with tf.variable_scope("regression"):
                     self.weights['regression_transform_task%i' % task_id] = MLP(input_size_qed, 1, [],
                                                                                 self.placeholders[
-                                                                                    'out_layer_dropout_keep_prob'])
-                histograms_input = tf.cast(self.placeholders['hist'], tf.float32)
+                                                                                    'out_layer_dropout_keep_prob'],
+                                                                                activation_function=tf.nn.leaky_relu)
+                hist_fake = tf.zeros_like(self.placeholders['hist'])
+                histograms_input = tf.cast(hist_fake, tf.float32)
                 v = self.placeholders['num_vertices']  # bucket size dimension, not all time the real one.
-                histograms = tf.tile(tf.expand_dims(histograms_input, 1), [1, v, 1]) * self.ops['graph_state_mask']
-                histograms_norm = tf.nn.l2_normalize(histograms, 2)
-                normalized_z_sampled = tf.nn.l2_normalize(self.ops['z_sampled'], 2)
-                qed_input = tf.concat([normalized_z_sampled, histograms_norm], 2)
-                self.ops['qed_computed_values'] = computed_values = self.gated_regression(qed_input,
-                                                                                          self.weights[
-                                                                                              'regression_gate_task%i' % task_id],
-                                                                                          self.weights[
-                                                                                              'regression_transform_task%i' % task_id],
-                                                                                          input_size_qed,
-                                                                                          self.weights['qed_weights'],
-                                                                                          self.weights['qed_biases'],
-                                                                                          self.placeholders[
-                                                                                              'num_vertices'],
-                                                                                          self.placeholders[
-                                                                                              'node_mask'])
+                # histograms = tf.tile(tf.expand_dims(histograms_input, 1), [1, v, 1]) * self.ops['graph_state_mask']
+                initial_nodes_decoder = self.ops['initial_repre_for_decoder']
+                if task_id == 0:
+                    computed_values = self.gated_regression_QED(initial_nodes_decoder,
+                                                                self.weights['regression_gate_task%i' % task_id],
+                                                                self.weights['regression_transform_task%i' % task_id],
+                                                                input_size_qed,
+                                                                self.weights['qed_weights'],
+                                                                self.weights['qed_biases'],
+                                                                self.placeholders['num_vertices'],
+                                                                self.placeholders['node_mask'])
+                    self.ops['qed_computed_values'] = computed_values
+                else:
+                    computed_values = self.gated_regression_plogP(initial_nodes_decoder,
+                                                                  self.weights['regression_gate_task%i' % task_id],
+                                                                  self.weights['regression_transform_task%i' % task_id],
+                                                                  input_size_qed,
+                                                                  self.weights['plogP_weights'],
+                                                                  self.weights['plogP_biases'],
+                                                                  self.placeholders['num_vertices'],
+                                                                  self.placeholders['node_mask'])
+                    self.ops['plogp_computed_values'] = computed_values
                 diff = computed_values - self.placeholders['target_values'][internal_id, :]  # [b]
                 task_target_mask = self.placeholders['target_mask'][internal_id, :]
                 task_target_num = tf.reduce_sum(task_target_mask) + utils.SMALL_NUMBER
@@ -922,23 +1019,38 @@ class RGIVAE(ChemModel):
                 # Normalise loss to account for fewer task-specific examples in batch:
                 task_loss = task_loss * (1.0 / (self.params['task_sample_ratios'].get(task_id) or 1.0))
                 self.ops['qed_loss'].append(task_loss)  # note that is the mean, not only the sum of all the batch
+                initial_nodes_decoder_shape = tf.shape(self.ops['initial_repre_for_decoder'])
                 if task_id == 0:  # Assume it is the QED score
-                    z_sampled_shape = tf.shape(self.ops['z_sampled'])
-                    flattened_z_sampled = tf.reshape(self.ops['z_sampled'], [z_sampled_shape[0], -1])
-                    self.ops['l2_loss'] = 0.01 * tf.reduce_sum(flattened_z_sampled * flattened_z_sampled, axis=1) / 2
+                    flattened_z = tf.reshape(initial_nodes_decoder, [initial_nodes_decoder_shape[0], -1])
+                    self.ops['l2_loss'] = 0.01 * tf.reduce_sum(flattened_z * flattened_z, axis=1) / 2
                     # Calculate the derivative with respect to QED + l2 loss
                     self.ops['derivative_z_sampled'] = tf.gradients(
-                        self.ops['qed_computed_values'] - self.ops['l2_loss'], self.ops['z_sampled'])
+                        self.ops['qed_computed_values'] - self.ops['l2_loss'],
+                        self.placeholders['z_prior'])
                     self.ops['derivative_hist'] = tf.gradients(self.ops['qed_computed_values'] - self.ops['l2_loss'],
                                                                histograms_input)
-                    # self.ops['derivative_z_sampled'] = tf.gradients(self.ops['qed_computed_values'], self.ops['z_sampled'])
-                    # self.ops['derivative_hist'] = tf.gradients(self.ops['qed_computed_values'], histograms_input)
+                elif task_id == 1:  # Assume it is the plogP score
+                    flattened_z = tf.reshape(initial_nodes_decoder, [initial_nodes_decoder_shape[0], -1])
+                    self.ops['l2_loss_plop'] = 0.01 * tf.reduce_sum(flattened_z * flattened_z, axis=1) / 2
+                    # Calculate the derivative with respect to QED + l2 loss
+                    self.ops['derivative_z_sampled_plop'] = tf.gradients(
+                        self.ops['plogp_computed_values'] - self.ops['l2_loss'],
+                        self.placeholders['z_prior'])
+                    self.ops['derivative_hist_plogp'] = tf.gradients(
+                        self.ops['plogp_computed_values'] - self.ops['l2_loss'],
+                        histograms_input)
         self.ops['total_qed_loss'] = tf.reduce_sum(
             self.ops['qed_loss'])  # number representing the sum of the mean of the loss for each property
         self.ops['mean_edge_loss'] = tf.reduce_mean(self.ops["edge_loss"])  # record the mean edge loss
         self.ops['mean_node_symbol_loss'] = tf.reduce_mean(self.ops["node_symbol_loss"])
         self.ops['mean_kl_loss'] = tf.reduce_mean(self.ops['kl_loss'])
-        self.ops['mean_total_qed_loss'] = self.params["qed_trade_off_lambda"] * self.ops['total_qed_loss']
+        self.ops['mean_total_qed_loss'] = 1000 * self.ops['total_qed_loss']
+
+        # 0.01 - keras default scalar
+        # l2_loss = 0
+        # for iter_idx in range(self.params['num_timesteps']):
+        #     for edge_type in range(self.num_edge_types):
+        #          l2_loss += self.weights['MLP_edge' + str(edge_type) + '_encoder' + str(iter_idx)].cal_l2_loss()
 
         loss = tf.reduce_mean(self.ops["edge_loss"] + self.ops['node_symbol_loss']
                               + kl_trade_off_lambda * self.ops['kl_loss']) \
@@ -957,12 +1069,12 @@ class RGIVAE(ChemModel):
 
         return loss
 
-    def gated_regression(self, last_h, regression_gate, regression_transform, hidden_size, projection_weight,
-                         projection_bias, v, mask):
+    def gated_regression_QED(self, last_h, regression_gate, regression_transform, hidden_size, projection_weight,
+                             projection_bias, v, mask):
         # last_h: [b x v x h]
         last_h = tf.reshape(last_h, [-1, hidden_size])  # [b*v, h]
         # linear projection on last_h
-        last_h = tf.nn.relu(tf.matmul(last_h, projection_weight) + projection_bias)  # [b*v, h]
+        last_h = tf.nn.leaky_relu(tf.matmul(last_h, projection_weight) + projection_bias)  # [b*v, h]
         # same as last_h
         gate_input = last_h
         # linear projection and combine                                       
@@ -972,6 +1084,22 @@ class RGIVAE(ChemModel):
         masked_gated_outputs = gated_outputs * mask  # [b x v]
         output = tf.reduce_sum(masked_gated_outputs, axis=1)  # [b]
         output = tf.sigmoid(output)
+        return output
+
+    def gated_regression_plogP(self, last_h, regression_gate, regression_transform, hidden_size, projection_weight,
+                               projection_bias, v, mask):
+        # last_h: [b x v x h]
+        last_h = tf.reshape(last_h, [-1, hidden_size])  # [b*v, h]
+        # linear projection on last_h
+        last_h = tf.nn.leaky_relu(tf.matmul(last_h, projection_weight) + projection_bias)  # [b*v, h]
+        # same as last_h
+        gate_input = last_h
+        # linear projection and combine
+        gated_outputs = tf.nn.sigmoid(regression_gate(gate_input)) * regression_transform(last_h)  # [b*v, 1]
+        gated_outputs = tf.reshape(gated_outputs, [-1, v])  # [b, v]
+        masked_gated_outputs = gated_outputs * mask  # [b x v]
+        output = tf.reduce_sum(masked_gated_outputs, axis=1)  # [b]
+        output = output
         return output
 
     # ----- Data preprocessing and chunking into minibatches:
@@ -1068,12 +1196,12 @@ class RGIVAE(ChemModel):
         return {
             self.placeholders['z_prior']: random_normal_states,  # [1, v, h]
             self.placeholders['num_vertices']: num_vertices,  # v
-            self.placeholders['node_symbols']: [elements['init']],
+            # self.placeholders['node_symbols']: [elements['init']],
             self.ops['latent_node_symbols']: latent_node_symbol,
             self.placeholders['adjacency_matrix']: [elements['adj_mat']],
             self.placeholders['node_mask']: [elements['mask']],
-            self.placeholders['graph_state_keep_prob']: 1,
-            self.placeholders['edge_weight_dropout_keep_prob']: 1,
+            # self.placeholders['graph_state_keep_prob']: 1,
+            # self.placeholders['edge_weight_dropout_keep_prob']: 1,
             self.placeholders['out_layer_dropout_keep_prob']: 1.0,
             self.placeholders['histograms']: self.histograms['train'][0],
             self.placeholders['n_histograms']: values,  # frequencies for sampling
@@ -1090,8 +1218,8 @@ class RGIVAE(ChemModel):
             self.placeholders['num_vertices']: num_vertices,  # v
             self.placeholders['node_symbols']: [elements['init']],
             self.placeholders['node_mask']: [elements['mask']],
-            self.placeholders['graph_state_keep_prob']: 1,
-            self.placeholders['edge_weight_dropout_keep_prob']: 1,
+            # self.placeholders['graph_state_keep_prob']: 1,
+            # self.placeholders['edge_weight_dropout_keep_prob']: 1,
             self.placeholders['out_layer_dropout_keep_prob']: 1.0,
             self.placeholders['histograms']: self.histograms['train'][0],
             self.placeholders['n_histograms']: self.histograms['train'][1],
@@ -1107,10 +1235,10 @@ class RGIVAE(ChemModel):
             self.placeholders['num_vertices']: num_vertices,  # v
             self.ops['initial_nodes_decoder']: latent_nodes,
             self.ops['latent_node_symbols']: latent_node_symbol,
-            self.placeholders['adjacency_matrix']: [elements['adj_mat']],
+            # self.placeholders['adjacency_matrix']: [elements['adj_mat']],
             self.placeholders['node_mask']: [elements['mask']],
-            self.placeholders['graph_state_keep_prob']: 1,
-            self.placeholders['edge_weight_dropout_keep_prob']: 1,
+            # self.placeholders['graph_state_keep_prob']: 1,
+            # self.placeholders['edge_weight_dropout_keep_prob']: 1,
             self.placeholders['out_layer_dropout_keep_prob']: 1.0,
         }
 
@@ -1205,6 +1333,8 @@ class RGIVAE(ChemModel):
 
         # Remove unconnected node
         utils.remove_extra_nodes(new_mol)
+        # new_mol.UpdatePropertyCache(strict=False)  # needed for the following command
+        # Chem.AssignStereochemistry(new_mol, force=True, cleanIt=False)  # fix properties
         smiles = Chem.MolToSmiles(new_mol)
         new_mol = Chem.MolFromSmiles(smiles)
         # if new_mol is None:
@@ -1218,10 +1348,13 @@ class RGIVAE(ChemModel):
     Optimization in latent space. Generate one molecule for each optimization step.
     """
 
-    def optimization_over_prior(self, random_normal_states, num_vertices, generated_all_similes, elements, count):
+    def optimization_over_prior(self, random_normal_states, num_vertices, generated_all_similes, generated_all_QED,
+                                elements, count):
         # record how many optimization steps are taken
         current_smiles = []
         step = 0
+        SMILES = []
+        QED_values = []
         # fix the choice of the first histogram)
         hist_prob_per_num_atoms = self.histograms['filter'][1][int(num_vertices)]
         hist_freq_per_num_atoms = self.histograms['filter'][0][int(num_vertices)]
@@ -1237,114 +1370,215 @@ class RGIVAE(ChemModel):
         current_hist = self.histograms['train'][0][sampled_idx_hist]
         temp = self.generate_graph_with_state(random_normal_states, num_vertices, generated_all_similes, elements, step,
                                               count, current_hist, hist_freq_per_num_atoms)
-        current_smiles.append(temp)
-
-        fetch_list = [self.ops['derivative_z_sampled'], self.ops['qed_computed_values'], self.ops['derivative_hist']]
-        if self.params['optimization_step'] > 0:
-            print("")
+        SMILES.append(temp)
+        # fetch_list = [self.ops['derivative_z_sampled'], self.ops['qed_computed_values'], self.ops['derivative_hist']]
+        if self.params['task_ids'][0] == 0:
+            fetch_list = [self.ops['derivative_z_sampled'], self.ops['qed_computed_values']]
+            current_function = QED.qed
+        else:
+            fetch_list = [self.ops['derivative_z_sampled_plogP'], self.ops['plogP_computed_values']]
+            current_function = utils.penalized_logP
         for _ in range(self.params['optimization_step']):
             # get current qed and derivative
             batch_feed_dict = self.get_dynamic_feed_dict(elements, None, None,
                                                          num_vertices, None, None, None, None, None,
                                                          random_normal_states, current_hist,
                                                          hist_freq_per_num_atoms)
-            derivative_z_sampled, qed_computed_values, grad_hist = self.sess.run(fetch_list, feed_dict=batch_feed_dict)
-            tmp_mol = Chem.MolFromSmiles(current_smiles[step])
+            derivative_z_sampled, qed_computed_values = self.sess.run(fetch_list, feed_dict=batch_feed_dict)
+            # print("grad_hist: ", grad_hist)
+            tmp_mol = Chem.MolFromSmiles(SMILES[step])
             if tmp_mol is not None:
-                print("Optimization: ", step, " - ", "Pred: ", qed_computed_values, "Real: ", QED.qed(tmp_mol),
-                      end="\n")
-                AllChem.Compute2DCoords(tmp_mol)
-                tmp_path = self.params['log_dir'] + '/' + self.params["dataset"] + '_optimization_' + str(
-                    len(generated_all_similes)) + "-" + str(step) + '.png'
-                Draw.MolToFile(tmp_mol, tmp_path)
+                QED_values.append([current_function(tmp_mol), qed_computed_values])
             else:
-                print("Optimization: ", step, " - ", "None molecule warning", end="\n")
+                QED_values.append([0, 0])
+                # print("Optimization: ", step, " - ", "None molecule warning", end="\n")
             # update the states
             random_normal_states = self.gradient_ascent(random_normal_states, derivative_z_sampled[0])
             # do local search on histograms
-            if self.params['hist_local_search']:
-                grad_hist_clean = grad_hist[0].tolist()[0]
-                abs_hist_grads = [abs(i) for i in grad_hist_clean]
-                max_hist_val = max(abs_hist_grads)
-                max_hist_idx = abs_hist_grads.index(max_hist_val)
-                if abs_hist_grads[max_hist_idx] != 0:
-                    if grad_hist_clean[max_hist_idx] > 0:
-                        current_hist[max_hist_idx] += 1
-                        print("Hist update:: ", current_hist)
-                    elif grad_hist_clean[max_hist_idx] < 0 and current_hist[max_hist_idx] > 0:
-                        current_hist[max_hist_idx] -= 1
-                        print("Hist update:: ", current_hist)
+            # if self.params['hist_local_search']:
+            #     grad_hist_clean = grad_hist[0].tolist()[0]
+            #     abs_hist_grads = [abs(i) for i in grad_hist_clean]
+            #     max_hist_val = max(abs_hist_grads)
+            #     max_hist_idx = abs_hist_grads.index(max_hist_val)
+            #     if abs_hist_grads[max_hist_idx] != 0:
+            #         if grad_hist_clean[max_hist_idx] > 0:
+            #             current_hist[max_hist_idx] += 1
+            #             print("Hist update:: ", current_hist)
+            #         elif grad_hist_clean[max_hist_idx] < 0 and current_hist[max_hist_idx] > 0:
+            #             current_hist[max_hist_idx] -= 1
+            #             print("Hist update:: ", current_hist)
             # generate a new molecule
             step += 1
             temp_opt = self.generate_graph_with_state(random_normal_states, num_vertices, generated_all_similes,
                                                       elements, step, count, current_hist, hist_freq_per_num_atoms)
-            current_smiles.append(temp_opt)
+            SMILES.append(temp_opt)
 
-        generated_all_similes.append(current_smiles)
-        n_gen_max = self.params['number_of_generation']
-        n_gen_cur = len(generated_all_similes)
-        print("Molecules generated: ", n_gen_cur, end='\r')
-        # give and indication about the number of generated molecules (on file)
-        if (n_gen_cur % (n_gen_max / 100.0)) == 0:
-            suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
-            mask = "_masked" if self.params['use_mask'] else "_noMask"
-            log_dir = self.params['log_dir']
-            priors_file = log_dir + "/" + str(dataset) + "_decoded_generation_" + str(
-                self.params["kl_trade_off_lambda"]) \
-                          + mask + suff + ".txt"
-            f = open(priors_file, "a")
-            f.writelines("Number of generated molecules: " + str(n_gen_cur) + "\n")
-            f.close()
-        if n_gen_cur >= n_gen_max and self.params['optimization_step'] == 0:
-            suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
-            mask = "_masked" if self.params['use_mask'] else "_noMask"
-            log_dir = self.params['log_dir']
-            priors_file = log_dir + "/" + str(dataset) + "_decoded_generation_" + str(
-                self.params["kl_trade_off_lambda"]) \
-                          + mask + suff + ".txt"
-
-            if self.params['dataset'] == 'moses':
-                df = pd.DataFrame(columns=['SMILES'])
-                df['SMILES'] = np.array(generated_all_similes).flatten().tolist()
-                df.to_csv(priors_file, index=None)
-            else:
-                generated = np.reshape(np.array(generated_all_similes).flatten().tolist(), (1000, -1))
-                f = open(priors_file, "w")
-                for line in generated:
-                    for res in line:
-                        f.write(res)
-                        f.write(";,;")
-                    f.write("\n")
-                f.close()
-            print("Generation done")
-            exit(0)
-
-        if n_gen_cur >= n_gen_max and self.params['optimization_step'] > 0:
-            suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
-            mask = "_masked" if self.params['use_mask'] else "_noMask"
-            log_dir = self.params['log_dir']
-            priors_file = log_dir + "/" + str(dataset) + "_decoded_optimized_generation_" + str(
-                self.params["kl_trade_off_lambda"]) \
-                          + mask + suff + ".txt"
-            generated = generated_all_similes
-            f = open(priors_file, "w")
-            for line in generated:
-                for res in line:
-                    f.write(res)
-                    f.write(";,;")
-                f.write("\n")
-            f.close()
-            print("Generation done")
-            exit(0)
+        generated_all_similes.append(SMILES)
+        generated_all_QED.append(QED_values)
         return random_normal_states
 
-    def generate_graph_with_state(self, random_normal_states, num_vertices,
+    def optimization(self, data):
+        # bucketed: data organized by bucket
+        (bucketed, bucket_sizes, bucket_at_step) = data
+        # all generated similes
+        generated_all_similes = []
+        generated_all_QED = []
+        # counter
+        count = 0
+        # shuffle the lengths
+        np.random.shuffle(bucket_at_step)
+        for step in range(len(bucket_at_step)):
+            bucket = bucket_at_step[step]  # bucket number
+            # data index
+            idx = random.randint(0, len(bucketed[bucket]) - 1)
+            elements_original = bucketed[bucket][idx]
+            elements = copy.deepcopy(elements_original)
+            maximum_length = bucket_sizes[bucket]
+            if self.params['compensate_num'] > 0:
+                maximum_length = self.compensate_node_length(elements, bucket_sizes[bucket])
+            # initial state
+            random_normal_states = utils.generate_std_normal(1, maximum_length,
+                                                             self.params['latent_space_size'])  # [1, h]
+            random_global_normal_states = np.random.normal(0, 1, [1, self.params['latent_space_size']])
+            random_normal_states = self.optimization_over_prior(random_normal_states, random_global_normal_states,
+                                                                maximum_length,
+                                                                generated_all_similes, generated_all_QED,
+                                                                elements, count)
+            n_gen_max = self.params['number_of_generation']
+            n_gen_cur = len(generated_all_similes)
+            print("Molecules optimized: ", n_gen_cur, end='\r')
+            if n_gen_cur >= n_gen_max:
+                # analysis
+                generated_smiles = np.array(generated_all_similes)
+                generated_QED = np.array(generated_all_QED)
+                generated_QED_delta = np.nanmax(generated_QED[:, :, 0], axis=1) - generated_QED[:, 0, 0]
+                generated_QED_max = np.nanmax(generated_QED[:, :, 0], axis=1)
+                generated_QED_argmax = np.nanargmax(generated_QED[:, :, 0], axis=1)
+
+                best_smiles = generated_smiles[np.arange(0, generated_QED.shape[0]), generated_QED_argmax]
+                # print(np.nanmax(generated_QED[:, :, 0], axis=1))
+
+                # save
+                suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
+                mask = "_masked" if self.params['use_mask'] else "_noMask"
+                log_dir = self.params['log_dir']
+                priors_file = log_dir + "/" + str(dataset) + "_optimization_" \
+                              + str(self.params['number_of_generation']) + "_" \
+                              + str(self.params['optimization_step']) \
+                              + mask + suff + ".txt"
+                f = open(priors_file, "w")
+                val_triple = zip(generated_QED[:, 0, 0], generated_QED_max, generated_QED_delta, best_smiles.flatten())
+                # val_triple_sorted = val_triple.sort(key=lambda x: x[1] if x[2] > 0 else 0, reverse=True)
+                val_triple_sorted = sorted(val_triple,
+                                           key=lambda x: x[1] if x[1] is not None else 0,
+                                           reverse=True)
+                for qed_init, qed_max, qed_delta, best_smiles in val_triple_sorted[:5]:
+                    # for val in line:
+                    #     f.write(str(val))
+                    #     f.write(", ")
+                    f.write(str(qed_init))
+                    f.write(", ")
+                    f.write(str(qed_max))
+                    f.write(", ")
+                    f.write(str(qed_delta))
+                    f.write(", ")
+                    f.write(str(best_smiles))
+                    f.write("\n")
+                f.close()
+                print("Optimization done")
+                exit(0)
+            count += 1
+
+    def generation_new_graphs(self, random_normal_states, random_global_normal_states, num_vertices,
+                              generated_all_similes, elements, count):
+        # record how many optimization steps are taken
+        step = 0
+        # fix the choice of the first histogram)
+        hist_prob_per_num_atoms = self.histograms['filter'][1][int(num_vertices)]
+        hist_freq_per_num_atoms = self.histograms['filter'][0][int(num_vertices)]
+        prob_sum = np.sum(hist_prob_per_num_atoms)
+        # if there are no histograms with the same number (or higher) of atoms, we use all the histograms
+        #   otherwise we give only the histograms with at least the same number fo atoms
+        if prob_sum == 0:
+            sampled_idx_hist = np.random.choice(len(self.histograms['train'][0]))
+            hist_freq_per_num_atoms = self.histograms['train'][1]
+        else:
+            sampled_idx_hist = np.random.choice(len(self.histograms['train'][0]), p=hist_prob_per_num_atoms)
+        # generate a new molecule
+        current_hist = self.histograms['train'][0][sampled_idx_hist]
+        temp = self.generate_graph_with_state(random_normal_states, random_global_normal_states, num_vertices,
+                                              generated_all_similes, elements, step,
+                                              count, current_hist, hist_freq_per_num_atoms)
+        generated_all_similes.append(temp)
+        return random_normal_states
+
+    def generation(self, data):
+        # bucketed: data organized by bucket
+        (bucketed, bucket_sizes, bucket_at_step) = data
+        # all generated similes
+        generated_all_similes = []
+        # counter
+        count = 0
+        # shuffle the lengths
+        np.random.shuffle(bucket_at_step)
+        for step in range(len(bucket_at_step)):
+            bucket = bucket_at_step[step]  # bucket number
+            # data index
+            idx = random.randint(0, len(bucketed[bucket]) - 1)
+            elements_original = bucketed[bucket][idx]
+            elements = copy.deepcopy(elements_original)
+            maximum_length = bucket_sizes[bucket]
+            # if idx == 11867 or elements['smiles'] == 'CC1COC1CC#N':  # 'CC1COC1CC#N'  # 'CC1[NH+]2CC(O)C12CO'
+            #     print('IDX: ', idx)
+            # compensate for the length during generation
+            # (this is a result that BFS may not make use of all candidate nodes during generation)
+            if self.params['compensate_num'] > 0:
+                maximum_length = self.compensate_node_length(elements, bucket_sizes[bucket])
+            # initial state
+            random_normal_states = utils.generate_std_normal(1, maximum_length,
+                                                             self.params['latent_space_size'])  # [1, h]
+            random_global_normal_states = np.random.normal(0, 1, [1, self.params['latent_space_size']])
+            random_normal_states = self.generation_new_graphs(random_normal_states, random_global_normal_states,
+                                                              maximum_length,
+                                                              generated_all_similes,
+                                                              elements, count)
+            # SAVING
+            n_gen_max = self.params['number_of_generation']
+            n_gen_cur = len(generated_all_similes)
+            print("Molecules generated: ", n_gen_cur, end='\r')
+            if n_gen_cur >= n_gen_max:
+                suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
+                mask = "_masked" if self.params['use_mask'] else "_noMask"
+                log_dir = self.params['log_dir']
+                priors_file = log_dir + "/" + str(dataset) + "_decoded_generation_" + str(
+                    self.params["kl_trade_off_lambda"]) \
+                              + mask + suff + ".txt"
+
+                if self.params['dataset'] == 'moses':
+                    df = pd.DataFrame(columns=['SMILES'])
+                    df['SMILES'] = np.array(generated_all_similes).flatten().tolist()
+                    df.to_csv(priors_file, index=None)
+                else:
+                    generated = np.reshape(np.array(generated_all_similes).flatten().tolist(), (1000, -1))
+                    f = open(priors_file, "w")
+                    for line in generated:
+                        for res in line:
+                            f.write(res)
+                            f.write(";,;")
+                        f.write("\n")
+                    f.close()
+                print("Generation done")
+                exit(0)
+            count += 1
+
+    def generate_graph_with_state(self, random_normal_states, random_global_normal_states, num_vertices,
                                   generated_all_similes, elements, step, count, current_hist, values_hist):
         # Get back node symbol predictions
         # Prepare dict
         node_symbol_batch_feed_dict = self.get_dynamic_feed_dict(elements, None, None,
                                                                  num_vertices, None, None, None, None, None,
-                                                                 random_normal_states, current_hist, values_hist)
+                                                                 random_normal_states,
+                                                                 current_hist, values_hist)
         # Get predicted node probabilities
         [latent_nodes, predicted_node_symbol_prob, real_values] = self.get_node_symbol(node_symbol_batch_feed_dict)
         # Node numbers for each graph
@@ -1386,6 +1620,10 @@ class RGIVAE(ChemModel):
             elements_original = bucketed[bucket][idx]
             elements = copy.deepcopy(elements_original)
             maximum_length = bucket_sizes[bucket]
+            # if idx == 11867 or elements['smiles'] == 'CC1COC1CC#N':  # 'CC1COC1CC#N'  # 'CC1[NH+]2CC(O)C12CO'
+            #     print('IDX: ', idx)
+            # compensate for the length during generation
+            # (this is a result that BFS may not make use of all candidate nodes during generation)
             if self.params['compensate_num'] > 0:
                 maximum_length = self.compensate_node_length(elements, bucket_sizes[bucket])
             # initial state
@@ -1524,7 +1762,7 @@ if __name__ == "__main__":
     args = docopt(__doc__)
     start = time.time()
     dataset = args.get('--dataset')
-    model = RGIVAE(args)
+    model = MolGVAE(args)
     try:
         model.train()
     except:

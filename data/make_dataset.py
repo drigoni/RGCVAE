@@ -57,15 +57,21 @@ def train_valid_split(dataset):
     raw_data = {'train': [], 'valid': [], 'test': []}
     file_count = 0
     for i, smiles in enumerate(dataset):
-        val = QED.qed(Chem.MolFromSmiles(smiles))
+        mol_rdkit = Chem.MolFromSmiles(smiles)
+        val_qed = QED.qed(mol_rdkit)
+        val_plogP = utils.penalized_logP(mol_rdkit)
         hist = make_hist(smiles)
         if hist is not None:
+            tmp_dict = {'smiles': smiles,
+                        'QED': val_qed,
+                        'plogP': val_plogP,
+                        'hist': hist.tolist()}
             if i in valid_idx:
-                raw_data['valid'].append({'smiles': smiles, 'QED': val, 'hist': hist.tolist()})
+                raw_data['valid'].append(tmp_dict)
             elif i in test_idx:
-                raw_data['test'].append({'smiles': smiles, 'QED': val, 'hist': hist.tolist()})
+                raw_data['test'].append(tmp_dict)
             else:
-                raw_data['train'].append({'smiles': smiles, 'QED': val, 'hist': hist.tolist()})
+                raw_data['train'].append(tmp_dict)
             file_count += 1
             if file_count % 1000 == 0:
                 print('Finished reading: %d' % file_count, end='\r')
@@ -99,14 +105,14 @@ def preprocess(raw_data, dataset):
     file_count = 0
     for section in ['train', 'valid', 'test']:
         all_smiles = []  # record all smiles in training dataset
-        for i, (smiles, QED, hist) in enumerate([(mol['smiles'], mol['QED'], mol['hist'])
-                                                 for mol in raw_data[section]]):
+        for i, (smiles, QED, plogP, hist) in enumerate([(mol['smiles'], mol['QED'], mol['plogP'], mol['hist'])
+                                                        for mol in raw_data[section]]):
             nodes, edges = utils.to_graph(smiles, dataset)
             if len(edges) <= 0:
                 print('Error. Molecule with len(edges) <= 0')
                 continue
             tmp_dict = {
-                'targets': [[QED]],
+                'targets': [[QED], [plogP]],
                 'graph': edges,
                 'node_features': nodes,
                 'smiles': smiles,
@@ -120,6 +126,12 @@ def preprocess(raw_data, dataset):
                 print('Finished processing: %d' % file_count, end='\r')
             file_count += 1
         print('%s: 100 %%                   ' % (section))
+        # save the dataset
+        # if section == 'train':
+        #     idx = np.random.randint(0, high=len(processed_data[section]), size=round(len(processed_data[section]) * 0.1))
+        #     with open('molecules_%s_%s_10000.json' % (section, dataset), 'w') as f:
+        #         json.dump([processed_data[section][i] for i in idx], f)
+        #     exit(0)
 
         with open('molecules_%s_%s.json' % (section, dataset), 'w') as f:
             json.dump(processed_data[section], f)
@@ -135,9 +147,9 @@ if __name__ == "__main__":
 
     print('Reading dataset: ' + str(dataset))
     data = []
-    if dataset == 'qm9' or dataset == 'qm9_long2':
+    if dataset == 'qm9' or dataset == 'qm9_ev' or dataset == 'qm9_ev2' or dataset == 'qm9_long' or dataset == 'qm9_long2' or dataset == 'qm9_long3':
         data = readStr_qm9()
-    elif dataset == 'zinc' or dataset == 'zinc_long2':
+    elif dataset == 'zinc' or dataset == 'zinc_ev' or dataset == 'zinc_ev2' or dataset == 'zinc_long' or dataset == 'zinc_long2' or dataset == 'zinc_long3':
         data = read_zinc()
     else:
         print('Error. The database doesn\'t exist')

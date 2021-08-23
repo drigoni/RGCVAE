@@ -43,6 +43,7 @@ class ChemModel(object):
         # adjust variables values
         if self.params['generation'] == 1:  # for generation
             self.params['batch_size'] = 1
+            self.params['use_mask'] = False
 
         if self.params['generation'] == 2:  # for reconstruction
             # self.params['batch_size'] = 1  # even represents the multithread
@@ -50,9 +51,16 @@ class ChemModel(object):
             self.params['use_argmax_bonds'] = True
             self.params['use_mask'] = True
 
-        if self.params['generation'] == 3:  # for testing
+        if self.params['generation'] == 3:  # for optimization
+            self.params['batch_size'] = 1
+            self.params['use_mask'] = False
             self.params['use_argmax_nodes'] = True
             self.params['use_argmax_bonds'] = True
+
+        if self.params['generation'] == 4:  # for testing
+            self.params['use_argmax_nodes'] = True
+            self.params['use_argmax_bonds'] = True
+            self.params['use_mask'] = True
 
         # use only cpu
         if not self.params['use_gpu']:
@@ -162,12 +170,13 @@ class ChemModel(object):
 
         return data, self.process_raw_graphs(data, is_training_data, file_name)
 
+    '''
+    Return:
+    - array_hist contains all the unique set of histograms
+    - array_number contains the number of the molecules with the same histogram
+    '''
+
     def prepareHist(self, data):
-        """
-        Return:
-        - array_hist contains all the unique set of histograms
-        - array_number contains the number of the molecules with the same histogram
-        """
         diz = defaultdict(list)
         for i in data:
             key = HM.histToScore(i['hist'], self.histograms['max_valence'])
@@ -250,7 +259,14 @@ class ChemModel(object):
             trainable_vars = filtered_vars
 
         optimizer = tf.train.AdamOptimizer(self.params['learning_rate'])
+        # with tf.control_dependencies(update_vars):
+        #     grads_and_vars = optimizer.compute_gradients(self.ops['loss'], var_list=trainable_vars)
         grads_and_vars = optimizer.compute_gradients(self.ops['loss'], var_list=trainable_vars)
+
+        # for i in grads_and_vars:
+        #     print(i[0])
+
+        # grads_and_vars = [(tf.where(tf.is_nan(grad), tf.zeros_like(grad), grad), val) for grad, val in grads_and_vars]
 
         clipped_grads = []
         grads_for_display = []
@@ -269,7 +285,11 @@ class ChemModel(object):
         self.ops['grads'] = grads_for_display
         self.ops['grads2'] = grads_for_display2
 
+        # self.ops['train_step'] = optimizer.apply_gradients(clipped_grads)
         self.ops['train_step'] = tf.group([optimizer.apply_gradients(clipped_grads), update_ops])
+
+        # Initialize newly-introduced variables:
+        # self.sess.run(tf.local_variables_initializer())
 
     def gated_regression(self, last_h, regression_gate, regression_transform):
         raise Exception("Models have to implement gated_regression!")
@@ -334,7 +354,7 @@ class ChemModel(object):
                 fetch_list = [self.ops['loss'], self.ops['train_step'],
                               self.ops["edge_loss"], self.ops['kl_loss'],
                               self.ops['node_symbol_prob'], self.placeholders['node_symbols'],
-                              self.ops['qed_computed_values'], self.placeholders['target_values'],
+                              self.ops['computed_values'], self.placeholders['target_values'],
                               self.ops['total_qed_loss'],
                               self.ops['mean'], self.ops['logvariance'],
                               self.ops['grads'], self.ops['mean_edge_loss'], self.ops['mean_node_symbol_loss'],
@@ -361,6 +381,8 @@ class ChemModel(object):
             batch_loss = result[0]
             loss += batch_loss * num_graphs
             if is_training:
+                # mean_features.append(result[9])
+                # var_features.append(result[10])
                 var_features = result[10]
                 mean_edge_loss += result[12] * num_graphs
                 mean_node_loss += result[13] * num_graphs
@@ -370,6 +392,9 @@ class ChemModel(object):
                 edge_pred_error += result[18] * num_graphs
                 edge_type_pred_error += result[19] * num_graphs
                 reconstruction += result[20]
+                # print("GRADS: ", result[16])
+                # print("GRADS NAN: ", np.any(np.isnull(result[16])))
+                # print("GRADS INF: ", np.any(np.isinf(result[16])))
             else:
                 mean_edge_loss += result[1] * num_graphs
                 mean_node_loss += result[2] * num_graphs
@@ -379,17 +404,28 @@ class ChemModel(object):
                 edge_pred_error += result[7] * num_graphs
                 edge_type_pred_error += result[8] * num_graphs
                 reconstruction += result[9]
+                # mean_features.extend(result[10])
+                # var_features.extend(result[11])
                 var_features = result[11]
 
+            # log_hit = np.count_nonzero(np.greater_equal(var_features, 2.5))
+            # if log_hit > 0:
+            #     print('HIT logvariance upper bound: ', log_hit)
+
             # tensorboard
-            if self.params['tensorboard'] is not None and self.params['generation'] == 0:
-                freq = self.params['tensorboard']
-                tmp_limit = n_batches // freq
-                if step % tmp_limit == 0:
-                    # print("SMILES: ", batch_data[self.placeholders['smiles']])
-                    global_step_counter = int((freq + 1) * (epoch_num - 1) + step // tmp_limit)
-                    tb_writer.add_summary(result[-1], global_step=global_step_counter)
-                    tb_writer.flush()
+            # if self.params['tensorboard'] is not None and self.params['generation'] == 0:
+            #     freq = self.params['tensorboard']
+            #     tmp_limit = n_batches // freq
+            #     if step % tmp_limit == 0:
+            #         # print("SMILES: ", batch_data[self.placeholders['smiles']])
+            #         global_step_counter = int((freq+1) * (epoch_num-1) + step // tmp_limit)
+            #         tb_writer.add_summary(result[-1], global_step=global_step_counter)
+            #         tb_writer.flush()
+
+            if self.params['tensorboard'] is not None and self.params['generation'] == 0 and step == 0:
+                global_step_counter = epoch_num - 1
+                tb_writer.add_summary(result[-1], global_step=global_step_counter)
+                tb_writer.flush()
 
             print("Running %s, batch %i/%i (has %i graphs). "
                   "Total loss: %.4f | "
@@ -410,7 +446,19 @@ class ChemModel(object):
                    edge_pred_error / processed_graphs,
                    edge_type_pred_error / processed_graphs,
                    reconstruction / processed_graphs), end='\r')
-
+        # print("")
+        # mean_flat = np.reshape(mean_features, [-1, self.params['latent_space_size']])
+        # var_flat = np.reshape(var_features, [-1, self.params['latent_space_size']])
+        # mean_sum = np.sum(mean_flat, axis=0)
+        # var_sum = np.sum(np.exp(var_flat), axis=0)
+        # print("MAX of  mu: ", np.max(mean_features))
+        # print("MIN of  mu: ", np.min(mean_features))
+        # print("MAX of  var: ", np.max(var_features))
+        # print("Average of  mu: ", mean_sum/n_nodes)
+        # print("Average of  var: ", var_sum / n_nodes)
+        # print("Variance of  mu: ", np.sum((mean_flat - [mean_sum/n_nodes])**2, axis=0)/n_nodes)
+        # print("Variance of  var: ", np.sum((var_flat - [var_sum/n_nodes])**2, axis=0)/n_nodes)
+        # print("")
         mean_edge_loss /= processed_graphs
         mean_node_loss /= processed_graphs
         mean_kl_loss /= processed_graphs
@@ -424,7 +472,10 @@ class ChemModel(object):
         return loss, mean_edge_loss, mean_node_loss, mean_kl_loss, mean_qed_loss, instance_per_sec, \
                node_pred_error, edge_pred_error, edge_type_pred_error, reconstruction
 
-    def generate_new_graphs(self, data):
+    def optimization(self, data):
+        raise Exception("Models have to implement generate_new_graphs!")
+
+    def generation(self, data):
         raise Exception("Models have to implement generate_new_graphs!")
 
     def reconstruction(self, data):
@@ -438,6 +489,8 @@ class ChemModel(object):
         elif self.params['generation'] == 2:
             print('START RECONSTRUCTION')
         elif self.params['generation'] == 3:
+            print('START OPTIMIZATION')
+        elif self.params['generation'] == 4:
             print('START TEST')
         suff = "_" + self.params['suffix'] if self.params['suffix'] is not None else ""
         log_to_save = []
@@ -474,8 +527,8 @@ class ChemModel(object):
                         'Epoch': epoch,
                         'Time': epoch_time,
                         'Train_results': (
-                            loss, mean_edge_loss, mean_node_loss, mean_kl_loss, mean_qed_loss, instance_per_sec, \
-                            node_pred_error, edge_pred_error, edge_type_pred_error, reconstruction),
+                        loss, mean_edge_loss, mean_node_loss, mean_kl_loss, mean_qed_loss, instance_per_sec, \
+                        node_pred_error, edge_pred_error, edge_type_pred_error, reconstruction),
                     }
                     log_to_save.append(log_entry)
 
@@ -485,10 +538,12 @@ class ChemModel(object):
                     self.save_model(str(epoch) + ("_%s%s.pickle" % (self.params["dataset"], suff)))
 
                 elif self.params['generation'] == 1:
-                    self.generate_new_graphs(self.train_data)
+                    self.generation(self.train_data)
                 elif self.params['generation'] == 2:
                     self.reconstruction(self.test_data)
-                elif self.params['generation'] == 3:  # validation only
+                elif self.params['generation'] == 3:
+                    self.optimization(self.train_data)
+                elif self.params['generation'] == 4:  # validation only
                     loss, mean_edge_loss, mean_node_loss, mean_kl_loss, mean_qed_loss, instance_per_sec, \
                     node_pred_error, edge_pred_error, edge_type_pred_error, reconstruction = \
                         self.run_epoch("epoch %i (training)" % epoch, epoch, self.train_data, False)
@@ -522,8 +577,8 @@ class ChemModel(object):
                         (loss, mean_edge_loss, mean_node_loss, mean_kl_loss, mean_qed_loss,
                          node_pred_error, edge_pred_error, edge_type_pred_error, reconstruction, instance_per_sec))
                     exit(0)
-            self.tb_writer_train.close()
-            self.tb_writer_valid.close()
+            # self.tb_writer_train.close()
+            # self.tb_writer_valid.close()
 
     def save_model(self, path: str) -> None:
         weights_to_save = {}

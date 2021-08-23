@@ -34,13 +34,12 @@ dependencies:
   - libuuid=1.0.3=h1bed415_2
   - libxcb=1.13=h1bed415_1
   - libxml2=2.9.8=h26e45fe_1
-  - markdown=2.6.11=py35_0
   - mkl=2018.0.3=1
   - mkl_fft=1.0.6=py35h7dd41cf_0
   - mkl_random=1.0.1=py35h4414c95_1
   - ncurses=6.1=he6710b0_1
-  - numpy=1.14.5
-  - numpy-base=1.14.5
+  - numpy=1.14.5=py35h1b885b7_4
+  - numpy-base=1.14.5=py35hdbf6ddf_4
   - olefile=0.46=py35_0
   - openssl=1.0.2p=h14c3975_0
   - pandas=0.23.4=py35h04863e7_0
@@ -48,13 +47,13 @@ dependencies:
   - pillow=5.2.0=py35heded4f4_0
   - pip=10.0.1=py35_0
   - pixman=0.34.0=hceecf20_3
-  - protobuf=3.6.0=py35hf484d3e_0
   - py-boost=1.65.1=py35hf484d3e_4
   - python=3.5.6=hc3d631a_0
   - python-dateutil=2.7.3=py35_0
   - pytz=2018.5=py35_0
+  - rdkit=2018.03.4.0=py35h71b666b_1
   - readline=7.0=h7b6447c_5
-  - setuptools=39.1.0
+  - setuptools=39.1.0=py35_0
   - six=1.11.0=py35_1
   - sqlite=3.25.3=h7b6447c_0
   - tensorboard=1.10.0=py35hf484d3e_0
@@ -67,16 +66,21 @@ dependencies:
   - wheel=0.31.1=py35_0
   - xz=5.2.4=h14c3975_4
   - zlib=1.2.11=h7b6447c_3
-  - rdkit=2018.03.4.0=py35h71b666b_1
   - pip:
       - bleach==1.5.0
+      - cycler==0.10.0
       - cython==0.29.1
+      - decorator==5.0.9
       - docopt==0.6.2
       - html5lib==0.9999999
-      - mkl-fft==1.0.6
-      - mkl-random==1.0.1
+      - kiwisolver==1.1.0
+      - markdown==3.0.1
+      - matplotlib==3.0.3
+      - networkx==2.4
       - planarity==0.4.1
+      - protobuf==3.6.1
+      - pyparsing==2.4.7
       - tensorflow-tensorboard==0.1.8
       - typing==3.6.6
-prefix: /home/user/Programs/miniconda/envs/rgivae
+prefix: /home/drigoni/Programs/miniconda/envs/rgivae
 
