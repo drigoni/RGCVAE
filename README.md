@@ -1,7 +1,6 @@
-# Relational Graph Isomorphism Variational Autoencoder (RGIVAE)
+# Relational Graph Conditioned Variational Autoencoder for Molecule Design (RGCVAE)
 
-This repository contains the code used to generate the results reported in the paper: _RGIVAE: Graph Isomorphism
-Variational Autoencoder for Molecule Design_.
+This repository contains the code used to generate the results reported in the paper: _RGCVAE: Relational Graph Conditioned Variational Autoencoder for Molecule Design_.
 
 # Dependencies
 
