@@ -26,7 +26,7 @@ First you need to download the necessary files and configuring the environment b
 
 ```bash
 sh setup.bash install
-conda activate rgivae
+conda activate rgcvae
 ```
 
 ### Data Pre-processing
@@ -50,7 +50,7 @@ Where _dataset_ can be:
 In order to train the model use:
 
 ```bash
-python RGIVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
+python RGCVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./results", "use_mask":false}'
 ```
 
 ### Model Test
@@ -58,13 +58,13 @@ python RGIVAE.py --dataset [dataset] --config '{"generation":0, "log_dir":"./res
 In order to generate new molecules:
 
 ```bash
-python RGIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results"}'
+python RGCVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":1, "log_dir":"./results"}'
 ```
 
 While, in order to reconstruct the molecules:
 
 ```bash
-python RGIVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results"}'
+python RGCVAE.py --dataset [dataset] --restore results/[checkpoint].pickle --config '{"generation":2, "log_dir":"./results"}'
 ```
 
 In order to analyze the results, we used the following
@@ -75,7 +75,7 @@ environment: [ComparisonsDGM](https://github.com/drigoni/ComparisonsDGM).
 In order to optimize a molecule use the following command:
 
 ```bash
-python RGIVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --config '{"generation":1, "use_mask":false, "suffix":"opt", "optimization_step": 20, "number_of_generation":100, "prior_learning_rate":0.3, "use_argmax_nodes":true, "use_argmax_bonds":true}'
+python RGCVAE.py --dataset zinc_long2 --restore results/[checkpoint].pickle --config '{"generation":1, "use_mask":false, "suffix":"opt", "optimization_step": 20, "number_of_generation":100, "prior_learning_rate":0.3, "use_argmax_nodes":true, "use_argmax_bonds":true}'
 ```
 
 # Pre-processed datasets, Pre-trained Models and Results

@@ -27,18 +27,18 @@ if [[ $s1 == $s2 ]]; then
     wget --no-check-certificate https://raw.githubusercontent.com/rdkit/rdkit/master/Contrib/SA_Score/fpscores.pkl.gz
 
     echo "------------------------------------------------------------------------------------------------------------"
-    echo "---------------------------------------------------  RGIVAE  -----------------------------------------------"
+    echo "---------------------------------------------------  rgcvae  -----------------------------------------------"
     echo "------------------------------------------------------------------------------------------------------------"
-    conda env create -f rgivae_env.yml
-    conda activate rgivae
+    conda env create -f rgcvae_env.yml
+    conda activate rgcvae
     pip install Cython --install-option="--no-cython-compile"
-    pip install -r rgivae_env_requirements.txt
+    pip install -r rgcvae_env_requirements.txt
     conda deactivate
 
 else
    if [[ $s1 == $s3 ]]; then
         conda deactivate
-        conda remove -n rgivae --all
+        conda remove -n rgcvae --all
    else
    		echo "To be implemented."
         else

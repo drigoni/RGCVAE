@@ -1,7 +1,7 @@
 #!/usr/bin/env/python
 """
 Usage:
-    RGIVAE.py [options]
+    RGCVAE.py [options]
 
 Options:
     -h --help                   Show this screen
@@ -204,8 +204,7 @@ class MolGVAE(ChemModel):
                                                                  state_keep_prob=self.placeholders[
                                                                      'graph_state_keep_prob'])
                             self.weights['node_gru' + scope] = cell
-
-            # ESP2 - RGCNC
+            # GIN VERSION
             elif self.params['use_gin']:
                 self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
                 for scope in ['_encoder']:
@@ -223,13 +222,56 @@ class MolGVAE(ChemModel):
                                                                                                         self.placeholders[
                                                                                                             'out_layer_dropout_keep_prob'],
                                                                                                         name='MLP_edge',
-                                                                                                        activation_function=tf.nn.leaky_relu)
-                            self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
-                                                                              new_h_dim,
-                                                                              [],
-                                                                              self.placeholders[
-                                                                                  'out_layer_dropout_keep_prob'],
-                                                                              activation_function=tf.nn.leaky_relu)
+                                                                                                        activation_function=tf.nn.leaky_relu,
+                                                                                                        bias=True)
+                            self.weights['MLP' + scope + str(iter_idx)] = MLP_norm(new_h_dim,
+                                                                                   new_h_dim,
+                                                                                   [new_h_dim],
+                                                                                   self.placeholders[
+                                                                                       'out_layer_dropout_keep_prob'],
+                                                                                   activation_function=tf.nn.leaky_relu)
+            # ESP1 - base graph convolution layer
+            # elif self.params['use_gin']:
+            #    self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
+            #    for scope in ['_encoder']:
+            #        if scope == '_encoder':
+            #            new_h_dim = h_dim_en
+            #        else:
+            #            new_h_dim = expanded_h_dim
+            #            # For each GNN iteration
+            #        for iter_idx in range(self.params['num_timesteps']):
+            #            with tf.variable_scope("gin_scope" + scope + str(iter_idx), reuse=False):
+            #                self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                  new_h_dim,
+            #                                                                  [],
+            #                                                                  self.placeholders[
+            #                            python -u RGCVAE.py --dataset moses --config '{"generation":0, "log_dir":"./results_esp3", "use_mask":false, "num_timesteps":10 "kl_trade_off_lambda":0.05, "hidden_size_encoder":150, "latent_space_size":150, "batch_size":500, "suffix":"kl0.05d150i12"}' | tee output_esp3.txt                                          'out_layer_dropout_keep_prob'],
+            #                                                                  activation_function=tf.nn.leaky_relu)
+            # ESP2 - link nicolo'
+            # elif self.params['use_gin']:
+            #     self.weights['gin_epsilon'] = tf.constant(self.params['gin_epsilon'], tf.float32)
+            #     for scope in ['_encoder']:
+            #         if scope == '_encoder':
+            #             new_h_dim = h_dim_en
+            #         else:
+            #             new_h_dim = expanded_h_dim
+            #             # For each GNN iteration
+            #         for iter_idx in range(self.params['num_timesteps']):
+            #             with tf.variable_scope("gin_scope" + scope + str(iter_idx), reuse=False):
+            #                 for edge_type in range(self.num_edge_types):
+            #                     self.weights['MLP_edge' + str(edge_type) + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                                             new_h_dim,
+            #                                                                                             [],
+            #                                                                                             self.placeholders[
+            #                                                                                                 'out_layer_dropout_keep_prob'],
+            #                                                                                             name='MLP_edge',
+            #                                                                                             activation_function=tf.nn.leaky_relu)
+            #                 self.weights['MLP' + scope + str(iter_idx)] = MLP(new_h_dim,
+            #                                                                   new_h_dim,
+            #                                                                   [],
+            #                                                                   self.placeholders[
+            #                                                                       'out_layer_dropout_keep_prob'],
+            #                                                                  activation_function=tf.nn.leaky_relu)
 
         # GIN VERSION
         with tf.name_scope('distribution_vars'):
@@ -387,7 +429,7 @@ class MolGVAE(ChemModel):
             last_h = tf.reshape(h, [-1, v, h_dim])
         return last_h
 
-    # ESP 2 - RGCNC
+    # ESP 1 - base graph convolution
     def compute_final_node_with_GIN(self, h, adj, scope_name):  # scope_name: _encoder or _decoder
         # h: initial representation, adj: adjacency matrix, different GNN parameters for encoder and decoder
         v = self.placeholders['num_vertices']
@@ -396,36 +438,28 @@ class MolGVAE(ChemModel):
         weigths_concat = h
         for iter_idx in range(self.params['num_timesteps']):
             with tf.variable_scope("gin_scope" + scope_name + str(iter_idx), reuse=None) as g_scope:
-                h = tf.reshape(h, [-1, h_dim])  # [b*v, h]
-                for edge_type in range(self.num_edge_types):
-                    m = tf.nn.leaky_relu(self.weights['MLP_edge' + str(edge_type) + scope_name + str(iter_idx)](h,
-                                                                                                                self.placeholders[
-                                                                                                                    'is_training']))
-                    # collect the messages from other vertices to each vertice
-                    m = tf.reshape(m, [-1, v, h_dim])  # [b, v, h]
-                    if edge_type == 0:
-                        acts = tf.matmul(adj[edge_type], m)
-                    else:
-                        acts += tf.matmul(adj[edge_type], m)  # [b, v, h]
                 simple_adj = tf.reduce_sum(adj, axis=0)  # [b, v, v]
+                acts = tf.matmul(simple_adj, h, name="gin_matmul")  # [b, v, h]
                 neig_sum = tf.reduce_sum(simple_adj, axis=-1, keepdims=True)
                 neig_check = tf.where(neig_sum > 0,
                                       neig_sum,
                                       tf.ones_like(neig_sum))
                 acts = acts / neig_check  # broadcasting
-                acts = tf.reshape(acts, [-1, h_dim])
-                h = self.weights['MLP' + scope_name + str(iter_idx)](h, self.placeholders['is_training'])
-                h = tf.nn.leaky_relu(h + acts)
+                # all messages collected for each node
+                input = h + acts
+                input = tf.reshape(input, [-1, h_dim])  # [b*v, h]
+                h = tf.nn.leaky_relu(
+                    self.weights['MLP' + scope_name + str(iter_idx)](input, self.placeholders['is_training']))
                 # tensorboard
-                h = tf.reshape(h, [-1, v, h_dim])
                 tf.summary.histogram("gin_scope" + scope_name + str(iter_idx) + "_node_state", h)
+                h = tf.reshape(h, [-1, v, h_dim])
                 weigths_concat = tf.concat([weigths_concat, h], axis=-1)
         last_h = h
         # tensorboard
         tf.summary.histogram("last_weigths_concat", weigths_concat)
         last_h = last_h * self.ops['graph_state_mask']
-        weigths_concat = weigths_concat * self.ops['graph_state_mask']
-        return last_h, weigths_concat, None
+        average_pooling = tf.reduce_mean(last_h, axis=1, keepdims=False)
+        return last_h, weigths_concat, average_pooling
 
     def compute_mean_and_logvariance(self):
         v = self.placeholders['num_vertices']
@@ -481,7 +515,6 @@ class MolGVAE(ChemModel):
             initial_nodes_decoder, node_symbol_prob, sampled_atoms = self.train_procedure()
         elif self.params['generation'] in [1, 2, 3]:  # Reconstruction and Generation
             initial_nodes_decoder, node_symbol_prob, sampled_atoms = self.gen_rec_procedure()
-
         # batch normalization
         initial_nodes_decoder_masked = initial_nodes_decoder * self.ops['graph_state_mask']
         initial_nodes_decoder_reshaped = tf.reshape(initial_nodes_decoder_masked, [-1, h_dim_de])
@@ -515,7 +548,6 @@ class MolGVAE(ChemModel):
         # calc emb hist
         input_z_hist = tf.concat(
             [self.ops['z_sampled'], self.placeholders['incr_hist'], self.placeholders['incr_diff_hist']], -1)
-
         z_input = tf.reshape(input_z_hist, [-1, latent_space_dim + 2 * hist_dim])
         hist_emb = tf.nn.tanh(self.weights['histogram_MLP'](z_input, self.placeholders['is_training']))
 
