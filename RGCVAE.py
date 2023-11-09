@@ -991,16 +991,22 @@ class MolGVAE(ChemModel):
         #     for edge_type in range(self.num_edge_types):
         #          l2_loss += self.weights['MLP_edge' + str(edge_type) + '_encoder' + str(iter_idx)].cal_l2_loss()
 
-        loss = tf.reduce_mean(self.ops["edge_loss"] + self.ops['node_symbol_loss']
-                              + kl_trade_off_lambda * self.ops['kl_loss']) \
-               + self.params["qed_trade_off_lambda"] * self.ops['total_qed_loss']
+        if self.args.get('--freeze-graph-model'):
+            # only the property part is trained
+            loss = self.params["qed_trade_off_lambda"] * self.ops['total_qed_loss']
+            #loss = self.ops['total_qed_loss']
+        else:
+            # only the model is trained
+            loss = tf.reduce_mean(self.ops["edge_loss"] + self.ops['node_symbol_loss']
+                                + kl_trade_off_lambda * self.ops['kl_loss'])
+                
         # tf summary
         tf.summary.scalar('total_qed_loss', self.ops['total_qed_loss'])
         tf.summary.scalar('mean_edge_loss', self.ops['mean_edge_loss'])
         tf.summary.scalar('mean_node_symbol_loss', self.ops['mean_node_symbol_loss'])
         tf.summary.scalar('mean_kl_loss', self.ops['mean_kl_loss'])
         tf.summary.scalar('mean_total_qed_loss', self.ops['mean_total_qed_loss'])
-        tf.summary.scalar('loss', self.ops['total_qed_loss'])
+        tf.summary.scalar('loss', loss)
         tf.summary.scalar('reconstruction', tf.reduce_mean(tf.cast(tf.equal(mols_errors, 0), tf.float32)))
         tf.summary.scalar('node_pred_error', self.ops['node_pred_error'])
         tf.summary.scalar('edge_pred_error', self.ops['edge_pred_error'])

@@ -47,7 +47,7 @@ def dataset_info(dataset):
                   'n_edges': [3, 1, 1, 1],
                   'n_nodes': [1, 1, 1, 1, 1],
                   'batch_size': 100,
-                  'n_epochs': 200,
+                  'n_epochs': 300,
                   }
     elif dataset == 'qm9_ev':
         values = {'atom_types': ["C1", "N1", "N4", "F1", "N3", "C3", "C4", "O2", "O4",
@@ -64,7 +64,7 @@ def dataset_info(dataset):
                   'n_nodes': [99645, 11763, 19003, 2828, 55743, 265029, 166614, 116325, 0,
                               34013, 198607, 45483, 1],
                   'batch_size': 100,
-                  'n_epochs': 200,
+                  'n_epochs': 300,
                   }
     elif dataset == 'qm9_ev2':
         values = {'atom_types': ["C1(0)", "N1(0)", "N4(1)", "F1(0)", "N3(0)", "C3(0)", "C4(0)", "O2(0)",
@@ -85,7 +85,7 @@ def dataset_info(dataset):
                               26110, 198607, 45188, 7903, 443, 337, 705, 295,
                               5, 1],
                   'batch_size': 100,
-                  'n_epochs': 200,
+                  'n_epochs': 300,
                   }
     elif dataset == 'qm9_long':
         values = {'atom_types': ["C4(0)", "N3(0)", "N2(-1)", "O2(0)", "F1(0)", "C3(-1)", "N4(1)", "C4(1)", "C3(1)",
@@ -102,7 +102,7 @@ def dataset_info(dataset):
                   'n_nodes': [725369, 93611, 7903, 161513, 2828, 705, 19003, 443, 3377,
                               295, 5, 1, 1],
                   'batch_size': 100,
-                  'n_epochs': 200,
+                  'n_epochs': 300,
                   }
     elif dataset == 'qm9_long2':
         values = {
@@ -123,7 +123,7 @@ def dataset_info(dataset):
             'n_nodes': [1, 1, 1, 1, 1, 1, 1, 1, 1,
                         1, 1, 1, 1, 1],
             'batch_size': 100,
-            'n_epochs': 200,
+            'n_epochs': 300,
             }
     elif dataset == 'zinc':
         values = {'atom_types': ["H", "C", "N", "O", "F", "S", "Cl", "Br", "I"],

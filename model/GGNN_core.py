@@ -114,7 +114,7 @@ class ChemModel(object):
 
         # Build the actual model
         config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
+        config.gpu_options.allow_growth = False
         self.graph = tf.Graph()
         self.sess = tf.Session(graph=self.graph, config=config)
         with self.graph.as_default():
@@ -145,6 +145,8 @@ class ChemModel(object):
                 self.restore_model(restore_file)
                 tmp_epoch = args.get('--restore_n')
                 self.start_epoch = int(tmp_epoch) + 1 if tmp_epoch is not None else 1
+                # if self.args.get('--freeze-graph-model'):
+                #     self.ops['optimizer'].
             else:
                 self.initialize_model()
 
@@ -249,16 +251,21 @@ class ChemModel(object):
         trainable_vars = self.sess.graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
         update_ops = self.sess.graph.get_collection(tf.GraphKeys.UPDATE_OPS)
         if self.args.get('--freeze-graph-model'):
-            graph_vars = set(self.sess.graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope="graph_model"))
+            keys_to_search_to_freeze = ["model/graph_convolution_vars", "model/distribution_vars", "model/gen_nodes_vars", "model/gen_edges_vars", "model/node_embedding", "batch_normalization", "gin_scope_encoder"]
+            graph_vars = set()
+            for key in keys_to_search_to_freeze:
+                graph_vars = graph_vars.union(set(self.sess.graph.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=key)))
             filtered_vars = []
             for var in trainable_vars:
                 if var not in graph_vars:
                     filtered_vars.append(var)
+                    print("Using variable %s." % var.name)
                 else:
                     print("Freezing weights of variable %s." % var.name)
             trainable_vars = filtered_vars
 
         optimizer = tf.train.AdamOptimizer(self.params['learning_rate'])
+        self.ops['optimizer'] = optimizer
         # with tf.control_dependencies(update_vars):
         #     grads_and_vars = optimizer.compute_gradients(self.ops['loss'], var_list=trainable_vars)
         grads_and_vars = optimizer.compute_gradients(self.ops['loss'], var_list=trainable_vars)
@@ -613,6 +620,7 @@ class ChemModel(object):
                 used_vars.add(variable.name)
                 if variable.name in data_to_load['weights']:
                     restore_ops.append(variable.assign(data_to_load['weights'][variable.name]))
+                    print('Weights loaded for variable: %s .' % variable.name)
                 else:
                     print('Freshly initializing %s since no saved value was found.' % variable.name)
                     variables_to_initialize.append(variable)
