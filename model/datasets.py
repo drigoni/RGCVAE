@@ -242,7 +242,7 @@ def dataset_info(dataset):
             'batch_size': 100,
             'n_epochs': 200,
         }
-    elif dataset == 'moses':
+    elif dataset == 'zinc1M_long2':
         values = {
             'atom_types': ['Cl1(0)0', 'S2(0)0', 'N3(0)0', 'O2(0)0', 'F1(0)0', 'C4(0)0', 'S6(0)0', 'S4(0)0', 'Br1(0)0'],
             'maximum_valence': {0: 1, 1: 2, 2: 3, 3: 2, 4: 1, 5: 4, 6: 6, 7: 4, 8: 1},
@@ -257,7 +257,7 @@ def dataset_info(dataset):
             # 'n_nodes':  [1.6752500e+05, 3.4812500e+05, 4.1872520e+06, 3.1869590e+06, 4.4005500e+05, 2.2158453e+07, 1.5217000e+05, 2.7260000e+03, 4.7220000e+04],
             'n_edges': [3, 1, 1, 1],
             'n_nodes': [1] * 9,
-            'batch_size': 512,
+            'batch_size': 1024,
 
         }
     else:
@@ -316,7 +316,7 @@ def dataset_atom_rep(dataset, atom):
         charge = atom.GetFormalCharge()
         chi = atom.GetChiralTag()
         atom_str = "%s%i(%i)%i" % (symbol, valence, charge, chi)
-    elif dataset == 'moses':
+    elif dataset == 'zinc1M_long2':
         symbol = atom.GetSymbol()
         valence = atom.GetTotalValence()
         charge = atom.GetFormalCharge()
@@ -349,7 +349,7 @@ def add_atoms(new_mol, node_symbol, dataset):
             new_atom.SetFormalCharge(charge_num)
             new_atom.SetChiralTag(number_to_chi[chi_number])
             new_mol.AddAtom(new_atom)
-        elif dataset == 'moses':
+        elif dataset == 'zinc1M_long2':
             new_atom = Chem.Atom(dataset_info(dataset)['number_to_atom'][number])
             charge_num = int(dataset_info(dataset)['atom_types'][number][:-1].split('(')[1].strip(')'))
             chi_number = int(dataset_info(dataset)['atom_types'][number][-1])

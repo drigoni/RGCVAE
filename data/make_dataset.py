@@ -5,7 +5,7 @@ Usage:
 
 Options:
     -h --help           Show this screen.
-    --dataset NAME      QM9 or ZINC
+    --dataset NAME      QM9 or ZINC or ZINC1M
 """
 
 import json
@@ -39,6 +39,15 @@ def readStr_qm9():
 
 def read_zinc():
     f = open(current_dir + '/zinc.smi', 'r')
+    L = []
+    for line in f:
+        line = line.strip()
+        L.append(line)
+    f.close()
+    return L
+
+def read_zinc1M():
+    f = open(current_dir + '/zinc1M.smi', 'r')
     L = []
     for line in f:
         line = line.strip()
@@ -151,6 +160,8 @@ if __name__ == "__main__":
         data = readStr_qm9()
     elif dataset == 'zinc' or dataset == 'zinc_ev' or dataset == 'zinc_ev2' or dataset == 'zinc_long' or dataset == 'zinc_long2' or dataset == 'zinc_long3':
         data = read_zinc()
+    elif dataset == "zinc1M_long2":
+        data = read_zinc1M()
     else:
         print('Error. The database doesn\'t exist')
         exit(1)
