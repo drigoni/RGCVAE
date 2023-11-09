@@ -1000,7 +1000,7 @@ class MolGVAE(ChemModel):
         tf.summary.scalar('mean_node_symbol_loss', self.ops['mean_node_symbol_loss'])
         tf.summary.scalar('mean_kl_loss', self.ops['mean_kl_loss'])
         tf.summary.scalar('mean_total_qed_loss', self.ops['mean_total_qed_loss'])
-        tf.summary.scalar('loss', self.ops['total_qed_loss'])
+        tf.summary.scalar('loss', loss)
         tf.summary.scalar('reconstruction', tf.reduce_mean(tf.cast(tf.equal(mols_errors, 0), tf.float32)))
         tf.summary.scalar('node_pred_error', self.ops['node_pred_error'])
         tf.summary.scalar('edge_pred_error', self.ops['edge_pred_error'])
