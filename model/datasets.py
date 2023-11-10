@@ -258,7 +258,7 @@ def dataset_info(dataset):
             'n_edges': [3, 1, 1, 1],
             'n_nodes': [1] * 9,
             'batch_size': 1024,
-
+            'n_epochs': 200,
         }
     else:
         print("Error: The datasets that you could use are QM9 or ZINC, not " + str(dataset))
