@@ -2,6 +2,8 @@
 
 This repository contains the code used to generate the results reported in the paper: _RGCVAE: Relational Graph Conditioned Variational Autoencoder for Molecule Design_.
 
+**NOTE**: The code utilized in some experiments outlined in the main manuscript can be found on different branches of this repo. 
+
 # Dependencies
 
 This project uses the `conda` environment. In the `root` folder you can find, for each model, the `.yml` file for the
