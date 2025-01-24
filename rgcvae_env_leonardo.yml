@@ -1,0 +1,23 @@
+name: rgcvae-gpu
+channels:
+  - conda-forge
+dependencies:
+  - bzip2
+  - ca-certificates
+  - expat
+  - ld_impl_linux-64
+  - libedit
+  - libffi
+  - libgcc-ng
+  - libgomp
+  - libstdcxx-ng
+  - ncurses=6.4
+  - pip=23.3
+  - python=3.8.0
+  - readline
+  - setuptools=68.0.0
+  - sqlite=3.33.0
+  - tk=8.6.12
+  - wheel=0.41.2
+  - zlib=1.2.13
+prefix: /ceph/hpc/home/eudavider/.conda/envs/rgcvae-gpu
