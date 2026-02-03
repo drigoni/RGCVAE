@@ -1,6 +1,19 @@
 # Relational Graph Conditioned Variational Autoencoder for Molecule Design (RGCVAE)
 
-This repository contains the code used to generate the results reported in the paper: _RGCVAE: Relational Graph Conditioned Variational Autoencoder for Molecule Design_.
+This repository contains the code used to generate the results reported in the paper: [RGCVAE: Relational Graph Conditioned Variational Autoencoder for Molecule Design](https://link.springer.com/article/10.1007/s10994-024-06638-4).
+
+```
+@article{rigoni2025rgcvae,
+  title={RGCVAE: relational graph conditioned variational autoencoder for molecule design},
+  author={Rigoni, Davide and Navarin, Nicol{\`o} and Sperduti, Alessandro},
+  journal={Machine Learning},
+  volume={114},
+  number={2},
+  pages={47},
+  year={2025},
+  publisher={Springer}
+}
+```
 
 **NOTE**: The code utilized in some experiments outlined in the main manuscript can be found on different branches of this repo. 
 
